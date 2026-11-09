@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>專案現場｜工作版原型</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">案</span><div><strong>專案現場</strong><small>工作版原型</small></div></div>
+    <div class="workspace" role="group" aria-label="切換工作區"><a href="../私人版/index.html" class="ws"><span class="ws-dot ws-dot-personal"></span>私人</a><a href="../工作版/index.html" class="ws active" aria-current="page"><span class="ws-dot ws-dot-work"></span>工作</a></div>
+    <nav aria-label="主要導覽">
+      <button data-view="overview" class="nav active"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> 專案總覽</button>
+      <div id="project-nav" class="project-nav"></div>
+      <button type="button" class="nav soon" disabled title="規劃中：來源可能是第二大腦，放私人或工作、要不要分開都還沒決定"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h6v18H6a2 2 0 0 1-2-2z"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg> 知識庫<small>規劃中</small></button>
+    </nav>
+    <div class="sidebar-note">
+      <label>目前身分<select id="role" aria-label="切換身分">
+        <option value="owner">專案負責人</option>
+        <option value="member">內部同事</option>
+        <option value="client">客戶</option>
+        <option value="vendor">供應商</option>
+      </select></label>
+      <small>身分切換只是前端模擬。正式版的權限必須在服務端執行，前端隱藏不等於資料受保護。</small>
+    </div>
+  </aside>
+
+  <main>
+    <header><span>工作版 <b>/</b> <span id="breadcrumb">專案總覽</span></span><span id="store-status" class="local">● 資料只在此瀏覽器</span></header>
+    <div class="content">
+
+      <section id="overview-view" class="view">
+        <div class="title-row">
+          <div><p class="eyebrow">所有專案</p><h1>現在每個案子走到哪</h1><p class="subtitle">目前階段、下個里程碑、還有幾件事等客戶回覆。</p></div>
+          <button class="primary" id="add-project" data-need="owner">＋ 新增專案</button>
+        </div>
+        <div id="kpis" class="kpis"></div>
+        <div id="projects-list" class="projects"></div>
+      </section>
+
+      <section id="project-view" class="view" hidden>
+        <div class="title-row">
+          <div><p class="eyebrow" id="p-client"></p><h1 id="p-name"></h1><div class="facts" id="p-facts"></div></div>
+          <div class="title-actions"><button class="outline" id="meeting-toggle"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg> 開會模式</button><button class="outline" id="edit-project" data-need="owner">編輯基本資料</button></div>
+        </div>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="summary">概況</button>
+          <button class="tab" data-tab="stages">階段與文件</button>
+          <button class="tab" data-tab="tracking">追蹤</button>
+        </div>
+
+        <div id="tab-summary" class="tab-panel">
+          <div id="p-kpis" class="kpis"></div>
+          <div class="two-col">
+            <div class="panel"><h2>專案目標</h2><p id="p-goal" class="goal"></p>
+              <div id="scope-block"><div class="scope"><div><h3>範圍內</h3><ul id="scope-in"></ul></div><div><h3>範圍外（另行報價）</h3><ul id="scope-out"></ul></div></div></div>
+            </div>
+            <div class="panel"><div class="section-title"><h2>里程碑</h2><button class="text-button" id="add-milestone" data-need="owner">＋ 里程碑</button></div><div id="milestones"></div></div>
+          </div>
+          <div class="panel" id="people-panel"><div class="section-title"><h2>協作對象</h2><button class="text-button" id="add-person" data-need="owner">＋ 協作對象</button></div><div id="people"></div></div>
+        </div>
+
+        <div id="tab-stages" class="tab-panel" hidden>
+          <div class="panel stepper-panel"><div class="stepper" id="stepper"></div></div>
+          <div id="stage-detail"></div>
+        </div>
+
+        <div id="tab-tracking" class="tab-panel" hidden>
+          <div class="panel" id="tasks-panel"><div class="section-title"><div><h2>任務</h2><p>每項任務掛在一個階段下，並標記誰看得到。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div><button class="text-button" id="add-task" data-need="owner member">＋ 任務</button></div><div id="tasks"></div></div>
+          <div class="two-col">
+            <div class="panel" id="confirms-panel"><div class="section-title"><div><h2>待客戶確認</h2><p>卡住進度、等客戶回覆的事。</p></div><button class="text-button" data-add-item="confirm" data-need="owner member">＋ 待確認</button></div><div id="confirms"></div></div>
+            <div class="panel" id="changes-panel"><div class="section-title"><div><h2>變更需求</h2><p>範圍外的需求在這裡追蹤報價狀態。</p></div><button class="text-button" data-add-item="change" data-need="owner member">＋ 變更</button></div><div id="changes"></div></div>
+          </div>
+          <div class="two-col">
+            <div class="panel internal" id="decisions-panel"><div class="section-title"><div><h2>決策紀錄 <span class="badge">內部</span></h2><p>什麼時候、誰、決定了什麼。</p></div><button class="text-button" data-add-item="decision" data-need="owner member">＋ 決策</button></div><div id="decisions"></div></div>
+            <div class="panel internal" id="risks-panel"><div class="section-title"><div><h2>風險與議題 <span class="badge">內部</span></h2><p>有需要才新增，不是每週必填。</p></div><button class="text-button" data-add-item="risk" data-need="owner member">＋ 風險</button></div><div id="risks"></div></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="meeting-view" class="meeting" hidden></div>
+
+<dialog id="project-dialog"><form id="project-form">
+  <div class="dialog-head"><div><p class="eyebrow">專案骨幹</p><h2 id="project-dialog-title">新增專案</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>專案名稱<input id="f-name" required maxlength="80" placeholder="例如：某零售業 會員系統改版"></label>
+  <div class="form-grid">
+    <label>客戶代稱<input id="f-client" maxlength="40" placeholder="產業＋類型，不寫真實公司名"></label>
+    <label>負責人<input id="f-owner" maxlength="40"></label>
+    <label>開始日<input type="date" id="f-start"></label>
+    <label>預計完成<input type="date" id="f-due"></label>
+  </div>
+  <label>階段範本<select id="f-template"></select></label>
+  <p class="hint" id="template-hint"></p>
+  <label>專案目標<textarea id="f-goal" placeholder="做完之後，客戶的什麼事情會不一樣？"></textarea></label>
+  <div class="form-grid">
+    <label>範圍內（一行一項）<textarea id="f-scope-in"></textarea></label>
+    <label>範圍外（一行一項）<textarea id="f-scope-out"></textarea></label>
+  </div>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存專案</button></div>
+</form></dialog>
+
+<dialog id="stage-dialog"><form id="stage-form">
+  <div class="dialog-head"><div><p class="eyebrow">階段</p><h2 id="stage-dialog-title">編輯階段</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>階段名稱<input id="st-name" required maxlength="40" placeholder="例如：設計、開發、測試驗收"></label>
+  <label>出口條件（做到什麼才算這個階段結束）<textarea id="st-exit" maxlength="200" placeholder="例如：客戶簽核設計稿"></textarea></label>
+  <div class="form-grid"><label>開始日期<input type="date" id="st-entered"></label><label>完成日期<input type="date" id="st-done"></label></div>
+  <fieldset class="vis"><legend>推進到下一階段前，必須完成</legend>
+    <label><input type="checkbox" id="st-gate-docs"> 我方文件全部已確認</label>
+    <label><input type="checkbox" id="st-gate-check"> 要做的事全部勾完</label>
+    <label><input type="checkbox" id="st-gate-feat"> 功能清單全部完成</label>
+    <small>沒達成時推進鈕會鎖住並列出缺什麼；負責人仍可按「略過條件推進」處理例外。</small>
+  </fieldset>
+  <p class="hint">推進階段時會自動記錄這兩個日期，事後也可以在這裡修正。</p>
+  <p class="hint">文件、要做的事、功能清單都在階段頁上直接增刪，不用進這個表單。</p>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存階段</button></div>
+</form></dialog>
+
+<dialog id="task-dialog"><form id="task-form">
+  <div class="dialog-head"><div><p class="eyebrow">追蹤</p><h2 id="task-dialog-title">新增任務</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>任務名稱<input id="t-name" required maxlength="80"></label>
+  <div class="form-grid">
+    <label>負責人<select id="t-assignee"></select></label>
+    <label>到期日<input type="date" id="t-due"></label>
+    <label>所屬階段<select id="t-stage"></select></label>
+    <label>狀態<select id="t-status"><option value="todo">待辦</option><option value="doing">進行中</option><option value="done">完成</option></select></label>
+  </div>
+  <fieldset class="vis"><legend>誰看得到</legend>
+    <label><input type="checkbox" id="t-vis-client"> 客戶</label>
+    <label><input type="checkbox" id="t-vis-vendor"> 供應商</label>
+    <small>內部同事一律看得到。</small>
+  </fieldset>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存任務</button></div>
+</form></dialog>
+
+<dialog id="item-dialog"><form id="item-form">
+  <div class="dialog-head"><div><p class="eyebrow">追蹤</p><h2 id="item-dialog-title"></h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label id="item-text-label">內容<textarea id="i-text" required></textarea></label>
+  <div class="form-grid">
+    <label id="i-by-wrap">提出或決定者<input id="i-by" maxlength="40"></label>
+    <label id="i-date-wrap">日期<input type="date" id="i-date"></label>
+    <label id="i-level-wrap">影響程度<select id="i-level"><option value="low">低</option><option value="mid">中</option><option value="high">高</option></select></label>
+    <label id="i-quote-wrap">報價狀態<select id="i-quote"><option value="pending">待報價</option><option value="quoted">已報價</option><option value="agreed">已同意</option><option value="declined">不做</option></select></label>
+  </div>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
+</form></dialog>
+
+<dialog id="doc-dialog"><form id="doc-form">
+  <div class="dialog-head"><div><p class="eyebrow">階段文件</p><h2 id="doc-dialog-title">文件設定</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>文件名稱<input id="d-name" required maxlength="60"></label>
+  <div class="form-grid">
+    <label>狀態<select id="d-status"><option value="na">尚未開始</option><option value="draft">草稿</option><option value="review">送審</option><option value="confirmed">已確認</option></select></label>
+    <label>類型<select id="d-kind"><option value="file">檔案／連結</option><option value="notion">Notion 頁面</option></select></label>
+    <label>由誰提供<select id="d-owner"><option value="ours">我方</option><option value="client">客戶</option><option value="vendor">供應商</option></select></label>
+  </div>
+  <div class="form-grid"><label>連結<input id="d-url" type="url" placeholder="https://www.notion.so/..."></label><label>確認日期<input type="date" id="d-confirmed"></label></div>
+  <p class="hint">狀態切到「已確認」時會自動填今天，需要的話在這裡改。</p>
+  <fieldset class="vis"><legend>誰看得到</legend>
+    <label><input type="checkbox" id="d-vis-client"> 客戶</label>
+    <label><input type="checkbox" id="d-vis-vendor"> 供應商</label>
+  </fieldset>
+  <div class="dialog-actions"><button type="button" class="text-button danger" id="doc-delete">刪除這份文件</button><span class="spacer"></span><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存文件</button></div>
+</form></dialog>
+
+<dialog id="small-dialog"><form id="small-form">
+  <div class="dialog-head"><div><h2 id="small-dialog-title"></h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>名稱<input id="s-name" required maxlength="60"></label>
+  <div class="form-grid">
+    <label id="s-date-wrap">日期<input type="date" id="s-date"></label>
+    <label id="s-side-wrap">所屬<select id="s-side"><option value="internal">內部</option><option value="client">客戶</option><option value="vendor">供應商</option></select></label>
+    <label id="s-role-wrap">角色<input id="s-role" maxlength="40" placeholder="例如：窗口、後端開發"></label>
+  </div>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
+</form></dialog>
+
+<script src="../shared/storage.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
