@@ -326,7 +326,8 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 .step::before{left:0;right:50%}
 .step::after{left:50%;right:0}
 .step:first-child::before,.step:last-child::after{display:none}
-.step.past::before,.step.past::after,.step.current::before{background:var(--green)}
+/* 連線只在「前一個階段已完成」時變綠；並行時未開始的階段後面那段維持灰色 */
+.step.past::after,.step.past + .step::before{background:var(--green)}
 .step-num{
   position:relative;z-index:1;width:36px;height:36px;border-radius:50%;
   background:var(--card);border:2px solid var(--line);display:grid;place-items:center;
@@ -347,6 +348,8 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 .stage-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:6px}
 .stage-head>div:first-child{min-width:0}
 .stage-head h2{font-size:21px}
+.st-doing{color:var(--accent)}.st-done{color:var(--green)}.st-todo{color:var(--ink-3)}
+.project .stage-line .pill+.pill{margin-left:-4px}
 .stage-dates{margin:4px 0 0;color:var(--ink-3);font-size:13.5px;font-variant-numeric:tabular-nums}
 .stage-tools{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .stage-tools .icon-btn{opacity:1;color:var(--ink-3)}

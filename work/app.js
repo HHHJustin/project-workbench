@@ -88,6 +88,7 @@ function buildStages(templateKey) {
     checklist: (s.checklist || []).map(text => ({ id: uid(), text, done: false, due: '' })),
     features: [], enteredOn: '', doneOn: '',
     gate: { docs: true, checklist: false, features: false }, // 推進條件：預設只要求我方文件全部確認
+    status: 'todo',
   }));
 }
 
@@ -163,12 +164,22 @@ function initial() {
   const feat = (text, status) => ({ id: uid(), text, status });
   p1.stages.find(s => s.id === 'dev').features = [feat('歡迎頁', 'done'), feat('報到輸入頁（預約碼＋手機）', 'done'), feat('確認頁', 'done'), feat('號碼牌頁', 'done'), feat('虛擬鍵盤', 'done')];
   p2.stages.find(s => s.id === 'dev').features = [feat('會員資料整合 API', 'doing'), feat('點數規則引擎', 'doing'), feat('等級升降規則', 'todo'), feat('後台會員列表與查詢', 'todo'), feat('後台手動調整點數', 'todo')];
+  for (const p of [p1, p2]) p.stages.forEach((s, i) => s.status = i < p.stageIndex ? 'done' : i === p.stageIndex ? 'doing' : 'todo');
   return { projects: [p1, p2] };
 }
 
-// 舊資料補欄位：11-09 以前存的專案沒有 checklist／features／日期／推進條件
+// 階段狀態：每個階段各自是 todo／doing／done，可以同時好幾個「進行中」（例如上線送審與弱掃並行）。
+// p.stageIndex 只是「主要階段」，由狀態推算，留著給同步腳本與舊程式用。
+const STAGE_STATUS = { todo: '尚未開始', doing: '進行中', done: '已完成' };
+const activeStages = p => p.stages.filter(s => s.status === 'doing');
+const primaryIndex = p => { const i = p.stages.findIndex(s => s.status === 'doing'); if (i > -1) return i; const j = p.stages.findIndex(s => s.status !== 'done'); return j > -1 ? j : p.stages.length - 1; };
+const activeNames = p => { const a = activeStages(p); return a.length ? a.map(s => s.name).join('、') : (p.stages.every(s => s.status === 'done') ? '全部完成' : '尚未開始'); };
+const doneCount = p => p.stages.filter(s => s.status === 'done').length;
+const syncPrimary = p => { p.stageIndex = primaryIndex(p); };
+// 舊資料補欄位：11-09 以前存的專案沒有 checklist／features／日期／推進條件／階段狀態
 function normalize(data) {
   if (!data || !Array.isArray(data.projects)) return initial();
+  for (const p of data.projects) { p.stages.forEach((s, i) => { s.status ??= i < (p.stageIndex ?? 0) ? 'done' : i === (p.stageIndex ?? 0) ? 'doing' : 'todo'; }); syncPrimary(p); }
   for (const p of data.projects) for (const s of p.stages) if (s.seed) {
     const t = TEMPLATES[s.seed.template]?.stages[s.seed.index];
     if (t) { s.exit ||= t.exit; s.docs = t.docs.map(d => ({ id: uid(), name: d.name, owner: d.owner, kind: d.kind || 'file', status: 'na', url: '', vis: [...d.vis], confirmedOn: '' })); s.checklist = (t.checklist || []).map(text => ({ id: uid(), text, done: false, due: '' })); }
@@ -184,7 +195,7 @@ let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = nu
 const stamp = () => new Date().toISOString();
 // 時間顯示：今天只顯示時分，其他日子加月日
 const fmtTime = iso => { if (!iso) return '—'; const d = new Date(iso); const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return localISO(d) === today() ? `今天 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`; };
-function save() { const p = project(); if (p) p.updatedAt = stamp(); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { alert('瀏覽器無法保存資料。'); } VaultStore.save(); }
+function save() { const p = project(); if (p) { p.updatedAt = stamp(); syncPrimary(p); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { alert('瀏覽器無法保存資料。'); } VaultStore.save(); }
 const project = () => state.projects.find(p => p.id === currentId);
 const can = key => ROLE[role][key];
 const personName = (p, id) => p.people.find(u => u.id === id)?.name || '未指定';
@@ -242,20 +253,19 @@ function renderOverview() {
   const openAll = projects.reduce((n, p) => n + p.confirms.filter(c => c.status === 'open').length, 0);
   const tasksAll = projects.flatMap(visibleTasks), undone = tasksAll.filter(t => t.status !== 'done').length;
   const nextMs = projects.flatMap(p => p.milestones.filter(m => !m.done && m.date).map(m => ({ ...m, project: p.name }))).sort((a, b) => a.date.localeCompare(b.date))[0];
-  $('#kpis').innerHTML = kpi('folder', 'blue', '追蹤中的專案', projects.length, projects.filter(p => p.stageIndex === p.stages.length - 1).length + ' 個在最後階段')
+  $('#kpis').innerHTML = kpi('folder', 'blue', '追蹤中的專案', projects.length, projects.filter(p => p.stages.every(s => s.status === 'done')).length + ' 個已全部完成')
     + (can('confirms') ? kpi('inbox', 'amber', '待客戶確認', openAll, '件等待回覆') : '')
     + kpi('list', 'purple', '未完成任務', undone, (() => { const r = tasksAll.filter(t => lightOf(t.due, t.status === 'done') === 'red').length; return r ? `${r} 件已過期或今天到期` : `共 ${tasksAll.length} 件你看得到的`; })())
     + kpi('flag', 'green', '下個里程碑', nextMs ? fmtDate(nextMs.date) : '—', nextMs ? esc(nextMs.project + ' · ' + nextMs.name) : '沒有未完成的里程碑');
 
   $('#projects-list').innerHTML = projects.map(p => {
-    const stage = p.stages[p.stageIndex];
     const tasks = visibleTasks(p), done = tasks.filter(t => t.status === 'done').length;
     const percent = tasks.length ? Math.round(done / tasks.length * 100) : 0;
     const open = p.confirms.filter(c => c.status === 'open').length;
     const next = p.milestones.find(m => !m.done);
     return `<article class="project" data-open="${p.id}">
       <div class="project-head"><div><h2>${esc(p.name)}</h2><p class="client">${esc(p.client)} · 負責人 ${esc(p.owner)}</p></div>${donut(percent)}</div>
-      <div class="stage-line"><span class="pill doing">${esc(stage.name)}</span><span>第 ${p.stageIndex + 1} / ${p.stages.length} 階段</span><span class="dim">${lightsBadge(lightCounts(p))}任務 ${done} / ${tasks.length}</span></div>
+      <div class="stage-line">${activeStages(p).map(s => `<span class="pill doing">${esc(s.name)}</span>`).join('') || `<span class="pill na">${activeNames(p)}</span>`}<span>完成 ${doneCount(p)} / ${p.stages.length} 階段</span><span class="dim">${lightsBadge(lightCounts(p))}任務 ${done} / ${tasks.length}</span></div>
       <p class="goal">${esc(p.goal)}</p>
       <div class="project-foot"><span class="meta" title="最後更新">${ICONS.clock}${fmtTime(p.updatedAt)}</span><span class="meta">${ICONS.flag}${next ? esc(next.name) + ' · ' + fmtDate(next.date) : '里程碑全部完成'}</span>${can('confirms') ? `<span class="meta ${open ? 'warn' : ''}">${ICONS.inbox}待客戶確認 ${open} 件</span>` : ''}</div></article>`;
   }).join('') || empty('box', '還沒有專案', '建立第一個案子，先把目標與範圍寫清楚。', 'panel');
@@ -267,10 +277,10 @@ function renderSummary(p) {
   const tasks = visibleTasks(p), tasksDone = tasks.filter(t => t.status === 'done').length;
   const feats = p.stages.flatMap(s => s.features), featsDone = feats.filter(f => f.status === 'done').length;
   const open = p.confirms.filter(c => c.status === 'open').length;
-  $('#p-kpis').innerHTML = kpi('layers', 'blue', '目前階段', `${p.stageIndex + 1} / ${p.stages.length}`, esc(p.stages[p.stageIndex].name))
+  $('#p-kpis').innerHTML = kpi('layers', 'blue', '階段完成', `${doneCount(p)} / ${p.stages.length}`, '進行中：' + esc(activeNames(p)))
     + kpi('doc', 'green', '文件已確認', `${docsOk} / ${docs.length}`, '你看得到的文件')
     + kpi('list', 'purple', '任務完成', `${tasksDone} / ${tasks.length}`, (() => { const c = lightCounts(p); return c.red ? `${c.red} 項已過期或今天到期` : c.amber ? `${c.amber} 項本週內到期` : '沒有急件'; })())
-    + (can('confirms') ? kpi('inbox', 'amber', '待客戶確認', open, '件等待回覆') : kpi('sparkle', 'amber', '功能完成', `${featsDone} / ${feats.length}`, '全部階段加總'));
+    + (can('confirms') ? kpi('inbox', 'amber', '待客戶確認', open, '件等待回覆') : (() => { const m = p.milestones.find(m => !m.done); return kpi('flag', 'amber', '下個里程碑', m ? fmtDate(m.date) : '—', m ? esc(m.name) : '里程碑全部完成'); })());
   $('#p-goal').textContent = p.goal || '尚未填寫目標';
   $('#scope-block').hidden = !can('scope');
   $('#scope-in').innerHTML = p.scopeIn.map(s => `<li>${esc(s)}</li>`).join('') || '<li class="muted">未填</li>';
@@ -282,7 +292,7 @@ function renderSummary(p) {
 
 // 階段頁：上方是步驟軸，下方是選定階段的出口條件、文件、要做的事、功能清單。狀態一點就循環切換，省掉表單。
 function renderStages(p) {
-  if (selectedStage == null || selectedStage >= p.stages.length) selectedStage = p.stageIndex;
+  if (selectedStage == null || selectedStage >= p.stages.length) selectedStage = primaryIndex(p);
   $('#stepper').innerHTML = stepperHtml(p);
   const s = p.stages[selectedStage], docs = s.docs.filter(visible);
   renderStageDetail(p, s, docs);
@@ -292,19 +302,18 @@ function stepperHtml(p, r = role) {
   return p.stages.map((s, i) => {
     const docs = s.docs.filter(v), ok = docs.filter(d => d.status === 'confirmed').length;
     const fdone = s.features.filter(f => f.status === 'done').length;
-    const past = i < p.stageIndex;
-    return `<button class="step ${past ? 'past' : ''} ${i === p.stageIndex ? 'current' : ''} ${i === selectedStage ? 'selected' : ''}" data-stage="${i}"><span class="step-num">${past ? '✓' : i + 1}</span><strong>${esc(s.name)}</strong><span class="mini">文件 ${ok}/${docs.length}${s.features.length ? ` · 功能 ${fdone}/${s.features.length}` : ''}</span><span class="mini date">${past ? (s.doneOn ? '完成 ' + fmtDate(s.doneOn) : '已完成') : i === p.stageIndex ? (s.enteredOn ? '開始 ' + fmtDate(s.enteredOn) : '進行中') : '尚未開始'}</span></button>`;
+    const past = s.status === 'done', cur = s.status === 'doing';
+    return `<button class="step ${past ? 'past' : ''} ${cur ? 'current' : ''} ${i === selectedStage ? 'selected' : ''}" data-stage="${i}"><span class="step-num">${past ? '✓' : i + 1}</span><strong>${esc(s.name)}</strong><span class="mini">文件 ${ok}/${docs.length}</span><span class="mini date">${past ? (s.doneOn ? '完成 ' + fmtDate(s.doneOn) : '已完成') : cur ? (s.enteredOn ? '開始 ' + fmtDate(s.enteredOn) : '進行中') : '尚未開始'}</span></button>`;
   }).join('');
 }
 function renderStageDetail(p, s, docs) {
-  const isCurrent = selectedStage === p.stageIndex, edit = can('edit');
+  const isCurrent = s.status === 'doing', edit = can('edit');
   const allConfirmed = s.docs.filter(d => d.owner !== 'client').every(d => d.status === 'confirmed');
   const checkDone = s.checklist.filter(c => c.done).length, featDone = s.features.filter(f => f.status === 'done').length;
   // 推進條件：每個階段自己勾選要求哪些；全部達成才開放推進鈕
   const gates = [
     s.gate.docs && { ok: allConfirmed, text: '我方文件全部已確認' },
     s.gate.checklist && { ok: checkDone === s.checklist.length, text: `要做的事全部完成（${checkDone}/${s.checklist.length}）` },
-    s.gate.features && { ok: featDone === s.features.length, text: `功能清單全部完成（${featDone}/${s.features.length}）` },
   ].filter(Boolean);
   const gateOk = gates.every(g => g.ok);
   const overdue = d => d && !s.doneOn && d < today();
@@ -320,17 +329,14 @@ function renderStageDetail(p, s, docs) {
   const addForm = (type, placeholder) => edit ? `<form class="inline-add" data-add-${type}="${selectedStage}"><input maxlength="80" required placeholder="${placeholder}" aria-label="${placeholder}">${type === 'check' ? '<input type="date" name="due" class="due-input" aria-label="時間節點" title="時間節點（選填）">' : ''}<button class="primary small" type="submit">加入</button></form>` : '';
 
   $('#stage-detail').innerHTML = `<div class="panel">
-    <div class="stage-head"><div><p class="eyebrow">階段 ${selectedStage + 1}${isCurrent ? ' · 目前所在' : selectedStage < p.stageIndex ? ' · 已完成' : ' · 尚未開始'}</p><h2>${esc(s.name)}</h2><p class="stage-dates">${s.enteredOn ? '開始 ' + esc(s.enteredOn) : '尚未開始'}${s.doneOn ? ' → 完成 ' + esc(s.doneOn) : ''}</p></div>
+    <div class="stage-head"><div><p class="eyebrow">階段 ${selectedStage + 1} · <span class="st-${s.status}">${STAGE_STATUS[s.status]}</span></p><h2>${esc(s.name)}</h2><p class="stage-dates">${s.enteredOn ? '開始 ' + esc(s.enteredOn) : '尚未開始'}${s.doneOn ? ' → 完成 ' + esc(s.doneOn) : ''}</p></div>
       <div class="stage-tools">${edit ? `${iconBtn('up', `data-move-stage="-1"`, '往前移')}${iconBtn('down', `data-move-stage="1"`, '往後移')}${iconBtn('edit', 'data-edit-stage', '編輯名稱與出口條件')}${iconBtn('trash', 'data-del-stage', '刪除這個階段')}<button class="outline" data-add-stage>＋ 在這之後新增階段</button>` : ''}
-      ${edit && isCurrent && selectedStage < p.stages.length - 1 ? `<button class="primary" id="advance" ${gateOk ? '' : 'disabled title="推進條件尚未全部達成"'}>推進到下一階段 →</button>${gateOk ? '' : '<button class="text-button danger" id="force-advance">略過條件推進</button>'}` : ''}</div></div>
-    <div class="exit"><strong>出口條件</strong><span>${esc(s.exit) || '尚未設定，按編輯鈕補上。'}</span>${gates.length ? `<ul class="gate">${gates.map(g => `<li class="${g.ok ? 'ok' : 'miss'}">${g.text}</li>`).join('')}</ul>` : '<em class="hint inline">沒有設定推進條件，隨時可推進。按編輯鈕可勾選。</em>'}</div>
+      ${!edit ? '' : s.status === 'todo' ? '<button class="primary" data-stage-start>開始這個階段</button>' : s.status === 'doing' ? `<button class="primary" data-stage-done ${gateOk ? '' : 'disabled title="完成條件尚未全部達成"'}>完成這個階段 ✓</button>${gateOk ? '' : '<button class="text-button danger" data-stage-force>略過條件完成</button>'}` : '<button class="outline" data-stage-reopen>重新開啟</button>'}</div></div>
+    <div class="exit"><strong>出口條件</strong><span>${esc(s.exit) || '尚未設定，按編輯鈕補上。'}</span>${gates.length ? `<ul class="gate">${gates.map(g => `<li class="${g.ok ? 'ok' : 'miss'}">${g.text}</li>`).join('')}</ul>` : '<em class="hint inline">沒有設定完成條件，隨時可標記完成。按編輯鈕可勾選。</em>'}</div>
     <div class="section-title"><div><h3>${ICONS.doc} 要交付的文件 <span class="count">${docs.filter(d => d.status === 'confirmed').length}/${docs.length}</span></h3><p>範本先給預設，實際要交什麼在這裡增刪。</p></div>${edit ? `<button class="text-button" data-add-doc="${selectedStage}">＋ 文件</button>` : ''}</div>
     <div class="doc-list">${docsHtml}</div>
   </div>
-  <div class="two-col">
-    ${can('checklist') ? `<div class="panel internal"><div class="section-title"><div><h3>${ICONS.check} 要做的事 <span class="count">${checkDone}/${s.checklist.length}</span> <span class="badge">內部</span></h3><p>這個階段自己要跑完的步驟，勾掉就好。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div></div><div class="check-list">${checkHtml}</div>${addForm('check', '新增一件要做的事…')}</div>` : ''}
-    <div class="panel"><div class="section-title"><div><h3>${ICONS.sparkle} 功能清單 <span class="count">${featDone}/${s.features.length}</span></h3><p>這個階段要做出來的功能，客戶與供應商都看得到。</p></div></div><div class="feature-list">${featHtml}</div>${addForm('feature', '新增一個要實作的功能…')}</div>
-  </div>`;
+  ${can('checklist') ? `<div class="panel internal"><div class="section-title"><div><h3>${ICONS.check} 要做的事 <span class="count">${checkDone}/${s.checklist.length}</span> <span class="badge">內部</span></h3><p>這個階段自己要跑完的步驟，勾掉就好。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div></div><div class="check-list">${checkHtml}</div>${addForm('check', '新增一件要做的事…')}</div>` : ''}`;
 }
 
 function renderTracking(p) {
@@ -357,10 +363,10 @@ function renderTracking(p) {
 
 function renderProject() {
   const p = project(); if (!p) return;
-  $('#p-client').textContent = p.client + ' · ' + TEMPLATES[p.template].name;
+  $('#p-client').textContent = p.client + ' · ' + (TEMPLATES[p.template]?.name || '自訂階段');
   $('#p-name').textContent = p.name;
   const fact = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
-  $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('目前階段', esc(p.stages[p.stageIndex].name))}${fact('你的身分', ROLE[role].label)}${fact('最後更新', fmtTime(p.updatedAt))}${p.notionSync && can('edit') ? fact('Notion 同步', `<span title="上次比對 ${esc(fmtTime(p.notionSync.lastChecked))}">${fmtTime(p.notionSync.lastSynced)}</span>${p.tasks.some(t => notionDirty(t)) ? ' <span class="chip pending-sync" title="工作台有改動還沒推到 Notion">待同步</span>' : ''}`) : ''}</dl>`;
+  $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('進行中階段', esc(activeNames(p)))}${fact('你的身分', ROLE[role].label)}${fact('最後更新', fmtTime(p.updatedAt))}${p.notionSync && can('edit') ? fact('Notion 同步', `<span title="上次比對 ${esc(fmtTime(p.notionSync.lastChecked))}">${fmtTime(p.notionSync.lastSynced)}</span>${p.tasks.some(t => notionDirty(t)) ? ' <span class="chip pending-sync" title="工作台有改動還沒推到 Notion">待同步</span>' : ''}`) : ''}</dl>`;
   renderSummary(p); renderStages(p); renderTracking(p);
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
   document.querySelectorAll('.tab-panel').forEach(el => el.hidden = el.id !== 'tab-' + currentTab);
@@ -384,19 +390,18 @@ function render() {
 
 // 開會模式：全螢幕、大字、只顯示客戶看得到的內容（投影時不會露出內部任務、決策、風險）；底部可直接記下決策或待確認
 function renderMeeting() {
-  const p = project(), v = visibleFor('client'), s = p.stages[p.stageIndex];
-  const docs = s.docs.filter(v), open = p.confirms.filter(c => c.status === 'open'), answered = p.confirms.filter(c => c.status !== 'open');
+  const p = project(), v = visibleFor('client'), act = activeStages(p).length ? activeStages(p) : [p.stages[primaryIndex(p)]], s = act[0];
+  const docs = act.flatMap(st => st.docs.filter(v).map(d => ({ ...d, stageName: st.name }))), open = p.confirms.filter(c => c.status === 'open'), answered = p.confirms.filter(c => c.status !== 'open');
   const canNote = can('edit'), canAnswer = canNote || role === 'client';
   const list = (items, map, emptyText) => items.length ? items.map(map).join('') : `<p class="m-empty">${emptyText}</p>`;
   $('#meeting-view').innerHTML = `
-    <div class="m-bar"><div><p class="eyebrow">開會模式 · 只顯示客戶看得到的內容</p><h1>${esc(p.name)}</h1><p class="m-sub">${esc(p.client)} · 第 ${p.stageIndex + 1} / ${p.stages.length} 階段「${esc(s.name)}」 · ${today()}</p></div><button class="outline" id="meeting-exit">結束開會模式 (Esc)</button></div>
+    <div class="m-bar"><div><p class="eyebrow">開會模式 · 只顯示客戶看得到的內容</p><h1>${esc(p.name)}</h1><p class="m-sub">${esc(p.client)} · 進行中：${esc(activeNames(p))} · ${today()}</p></div><button class="outline" id="meeting-exit">結束開會模式 (Esc)</button></div>
     <div class="panel stepper-panel"><div class="stepper">${stepperHtml(p, 'client').replaceAll('data-stage=', 'data-noop=')}</div></div>
     <div class="m-grid">
-      <div class="panel"><h2>${ICONS.doc} 本階段要交付的文件</h2>${list(docs, d => `<div class="m-row"><span class="row-icon ${d.kind === 'notion' ? 'notion' : d.owner}">${d.kind === 'notion' ? 'N' : ICONS.doc}</span><div><strong>${esc(d.name)}</strong><small>${d.owner === 'ours' ? '我方提供' : d.owner === 'client' ? '客戶提供' : '供應商提供'}${d.confirmedOn ? ' · 已確認 ' + esc(d.confirmedOn) : ''}</small></div>${pill(d.status, DOC_STATUS[d.status], canNote ? `data-cycle-doc="${d.id}"` : '')}</div>`, '這個階段沒有要給客戶看的文件。')}</div>
+      <div class="panel"><h2>${ICONS.doc} 進行中階段要交付的文件</h2>${list(docs, d => `<div class="m-row"><span class="row-icon ${d.kind === 'notion' ? 'notion' : d.owner}">${d.kind === 'notion' ? 'N' : ICONS.doc}</span><div><strong>${esc(d.name)}</strong><small>${act.length > 1 ? esc(d.stageName) + ' · ' : ''}${d.owner === 'ours' ? '我方提供' : d.owner === 'client' ? '客戶提供' : '供應商提供'}${d.confirmedOn ? ' · 已確認 ' + esc(d.confirmedOn) : ''}</small></div>${pill(d.status, DOC_STATUS[d.status], canNote ? `data-cycle-doc="${d.id}"` : '')}</div>`, '進行中的階段沒有要給客戶看的文件。')}</div>
       <div class="panel m-focus"><h2>${ICONS.inbox} 待客戶確認 <span class="count">${open.length}</span></h2>${list(open, c => `<div class="m-row"><div><strong>${esc(c.text)}</strong><small>提出於 ${esc(c.askedOn)}</small></div>${pill('open', '等待回覆', canAnswer ? `data-cycle-confirm="${c.id}"` : '')}</div>`, '沒有等客戶回覆的事。')}${answered.length ? `<details class="m-more"><summary>已回覆 ${answered.length} 件</summary>${answered.map(c => `<div class="m-row"><div><strong>${esc(c.text)}</strong></div>${pill('answered', '已回覆', canAnswer ? `data-cycle-confirm="${c.id}"` : '')}</div>`).join('')}</details>` : ''}</div>
       <div class="panel"><h2>${ICONS.leaf} 變更需求</h2>${list(p.changes, c => `<div class="m-row"><div><strong>${esc(c.text)}</strong><small>${esc(c.by)} · ${esc(c.date)} · 範圍外，另行報價</small></div>${pill(c.quote, QUOTE[c.quote], canNote ? `data-cycle-change="${c.id}"` : '')}</div>`, '沒有變更需求。')}</div>
       <div class="panel"><h2>${ICONS.flag} 里程碑</h2>${list(p.milestones, m => `<div class="m-row ${m.done ? 'done' : ''}"><div><strong>${light(m.date, m.done)}${esc(m.name)}</strong><small>${esc(m.date)}</small></div>${pill(m.done ? 'done' : 'todo', m.done ? '完成' : '未到')}</div>`, '還沒有里程碑。')}</div>
-      <div class="panel"><h2>${ICONS.sparkle} 本階段功能清單</h2>${list(s.features, f => `<div class="m-row"><div><strong>${esc(f.text)}</strong></div>${pill(f.status, FEATURE_STATUS[f.status], canNote ? `data-cycle-feature="${f.id}"` : '')}</div>`, '這個階段沒有功能清單。')}</div>
     </div>
     ${canNote ? `<form class="m-note" id="meeting-note"><input maxlength="200" placeholder="會議中記下：決定了什麼、或要請客戶回覆什麼…" aria-label="會議紀錄" required><button class="primary" type="submit" value="decision">記為決策</button><button class="outline" type="submit" value="confirm">記為待客戶確認</button></form>` : ''}`;
 }
@@ -410,7 +415,7 @@ function openProjectDialog(p) {
   $('#f-name').value = p?.name || ''; $('#f-client').value = p?.client || ''; $('#f-owner').value = p?.owner || '';
   $('#f-start').value = p?.start || ''; $('#f-due').value = p?.due || ''; $('#f-template').value = p?.template || 'standard';
   $('#f-goal').value = p?.goal || ''; $('#f-scope-in').value = (p?.scopeIn || []).join('\n'); $('#f-scope-out').value = (p?.scopeOut || []).join('\n');
-  $('#template-hint').textContent = TEMPLATES[$('#f-template').value].hint + ' 建立後階段仍可自由增刪與改名。';
+  $('#template-hint').textContent = p && !TEMPLATES[p.template] ? '這個專案的階段是自訂的（例如依 SOW 排定），要改階段請到「階段與文件」。' : TEMPLATES[$('#f-template').value].hint + ' 建立後階段仍可自由增刪與改名。';
   $('#project-dialog').showModal();
 }
 $('#f-template').onchange = e => $('#template-hint').textContent = TEMPLATES[e.target.value].hint + ' 建立後階段仍可自由增刪與改名。';
@@ -420,7 +425,7 @@ $('#project-form').onsubmit = e => {
   const base = { name: $('#f-name').value.trim(), client: $('#f-client').value.trim(), owner: $('#f-owner').value.trim(), start: $('#f-start').value, due: $('#f-due').value, goal: $('#f-goal').value.trim(), scopeIn: lines('#f-scope-in'), scopeOut: lines('#f-scope-out') };
   if (!base.name) return;
   if (editing) Object.assign(project(), base);
-  else { const t = $('#f-template').value; const p = { id: uid(), ...base, template: t, stageIndex: 0, people: [], milestones: [], stages: buildStages(t), tasks: [], confirms: [], changes: [], decisions: [], risks: [] }; state.projects.push(p); currentId = p.id; selectedStage = null; }
+  else { const t = $('#f-template').value; const p = { id: uid(), ...base, template: t, stageIndex: 0, people: [], milestones: [], stages: buildStages(t).map((s, i) => ({ ...s, status: i === 0 ? 'doing' : 'todo' })), tasks: [], confirms: [], changes: [], decisions: [], risks: [] }; state.projects.push(p); currentId = p.id; selectedStage = null; }
   save(); $('#project-dialog').close(); render();
 };
 
@@ -432,15 +437,15 @@ function openStageDialog(mode) {
   $('#st-name').value = mode === 'edit' ? s.name : ''; $('#st-exit').value = mode === 'edit' ? s.exit : '';
   $('#st-entered').value = mode === 'edit' ? s.enteredOn : ''; $('#st-done').value = mode === 'edit' ? s.doneOn : '';
   const g = mode === 'edit' ? s.gate : { docs: true, checklist: false, features: false };
-  $('#st-gate-docs').checked = g.docs; $('#st-gate-check').checked = g.checklist; $('#st-gate-feat').checked = g.features;
+  $('#st-gate-docs').checked = g.docs; $('#st-gate-check').checked = g.checklist; 
   $('#stage-dialog').showModal();
 }
 $('#stage-form').onsubmit = e => {
   e.preventDefault(); const p = project(); const name = $('#st-name').value.trim(), exit = $('#st-exit').value.trim(); if (!name) return;
   const enteredOn = $('#st-entered').value, doneOn = $('#st-done').value;
-  const gate = { docs: $('#st-gate-docs').checked, checklist: $('#st-gate-check').checked, features: $('#st-gate-feat').checked };
+  const gate = { docs: $('#st-gate-docs').checked, checklist: $('#st-gate-check').checked, features: false };
   if ($('#stage-form').dataset.mode === 'edit') Object.assign(p.stages[selectedStage], { name, exit, enteredOn, doneOn, gate });
-  else { p.stages.splice(selectedStage + 1, 0, { id: uid(), name, exit, docs: [], checklist: [], features: [], enteredOn, doneOn, gate }); selectedStage += 1; if (selectedStage <= p.stageIndex) p.stageIndex += 1; }
+  else { p.stages.splice(selectedStage + 1, 0, { id: uid(), name, exit, docs: [], checklist: [], features: [], enteredOn, doneOn, gate, status: doneOn ? 'done' : enteredOn ? 'doing' : 'todo' }); selectedStage += 1; }
   save(); $('#stage-dialog').close(); render();
 };
 
@@ -450,7 +455,7 @@ function openTaskDialog(t) {
   $('#t-assignee').innerHTML = '<option value="">未指定</option>' + p.people.map(u => `<option value="${u.id}">${esc(u.name)}（${SIDE[u.side]}）</option>`).join('');
   $('#t-stage').innerHTML = p.stages.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   $('#t-name').value = t?.name || ''; $('#t-assignee').value = t?.assignee || ''; $('#t-due').value = t?.due || '';
-  $('#t-stage').value = t?.stage || p.stages[p.stageIndex].id; $('#t-status').value = t?.status || 'todo';
+  $('#t-stage').value = t?.stage || p.stages[primaryIndex(p)].id; $('#t-status').value = t?.status || 'todo';
   $('#t-vis-client').checked = !!t?.vis.includes('client'); $('#t-vis-vendor').checked = !!t?.vis.includes('vendor');
   $('#t-links').value = linksText(t?.links);
   const ns = p.notionSync;
@@ -586,10 +591,17 @@ document.addEventListener('click', e => {
   if (d.cycleConfirm) { const c = p.confirms.find(c => c.id === d.cycleConfirm); c.status = c.status === 'open' ? 'answered' : 'open'; save(); render(); }
   if (d.cycleChange) { const c = p.changes.find(c => c.id === d.cycleChange); c.quote = cycle(['pending', 'quoted', 'agreed', 'declined'], c.quote); save(); render(); }
   if (d.toggleMs) { const m = p.milestones.find(m => m.id === d.toggleMs); m.done = !m.done; save(); render(); }
-  if (b.id === 'advance' || b.id === 'force-advance') {
-    const msg = (b.id === 'force-advance' ? '推進條件尚未全部達成，仍要' : '') + '推進到「' + p.stages[p.stageIndex + 1].name + '」？';
-    if (confirm(msg)) { const cur = p.stages[p.stageIndex], next = p.stages[p.stageIndex + 1]; cur.doneOn ||= today(); next.enteredOn ||= today(); p.stageIndex++; selectedStage = p.stageIndex; save(); render(); }
+  if ('stageStart' in d) { const s = p.stages[selectedStage]; s.status = 'doing'; s.enteredOn ||= today(); save(); render(); }
+  if ('stageDone' in d || 'stageForce' in d) {
+    const s = p.stages[selectedStage];
+    if (confirm(('stageForce' in d ? '完成條件尚未全部達成，仍要' : '') + '把「' + s.name + '」標記為完成？')) {
+      s.status = 'done'; s.doneOn ||= today(); s.enteredOn ||= s.doneOn;
+      // 如果沒有其他進行中的階段，順手開始下一個尚未開始的，維持原本「推進」的手感
+      if (!activeStages(p).length) { const next = p.stages.find((x, i) => i > selectedStage && x.status === 'todo'); if (next) { next.status = 'doing'; next.enteredOn ||= today(); selectedStage = p.stages.indexOf(next); } }
+      save(); render();
+    }
   }
+  if ('stageReopen' in d) { const s = p.stages[selectedStage]; if (confirm('重新開啟「' + s.name + '」？完成日期會清掉。')) { s.status = 'doing'; s.doneOn = ''; save(); render(); } }
   if (d.del) { const [list, id] = d.del.split(':'); const item = p[list].find(x => x.id === id); if (confirm(item?.notion?.url ? '這筆有同步到 Notion。刪除後下次同步會列出來讓你決定 Notion 那列要不要刪，確定刪除？' : '確定刪除？')) { if (item?.notion?.url) p.notionSync.removed.push(item.notion.url); p[list] = p[list].filter(x => x.id !== id); save(); render(); } }
   // 階段本身的增刪改與排序
   if ('editStage' in d) openStageDialog('edit');
@@ -598,7 +610,6 @@ document.addEventListener('click', e => {
     const j = selectedStage + Number(d.moveStage); if (j < 0 || j >= p.stages.length) return;
     [p.stages[selectedStage], p.stages[j]] = [p.stages[j], p.stages[selectedStage]];
     // 目前所在階段跟著移動，不然「目前」會指到別的階段
-    if (p.stageIndex === selectedStage) p.stageIndex = j; else if (p.stageIndex === j) p.stageIndex = selectedStage;
     selectedStage = j; save(); render();
   }
   if ('delStage' in d) {
@@ -608,7 +619,6 @@ document.addEventListener('click', e => {
     if (!confirm(`刪除階段「${s.name}」？${s.docs.length ? `裡面的 ${s.docs.length} 份文件會一起刪除。` : ''}${linked ? `${linked} 項任務會變成「未指定階段」。` : ''}`)) return;
     p.tasks.forEach(t => { if (t.stage === s.id) t.stage = ''; });
     p.stages.splice(selectedStage, 1);
-    if (p.stageIndex > selectedStage || p.stageIndex >= p.stages.length) p.stageIndex = Math.max(0, Math.min(p.stageIndex - 1, p.stages.length - 1));
     selectedStage = Math.min(selectedStage, p.stages.length - 1); save(); render();
   }
   // 要做的事、功能清單

@@ -109,14 +109,13 @@
   <label>階段名稱<input id="st-name" required maxlength="40" placeholder="例如：設計、開發、測試驗收"></label>
   <label>出口條件（做到什麼才算這個階段結束）<textarea id="st-exit" maxlength="200" placeholder="例如：客戶簽核設計稿"></textarea></label>
   <div class="form-grid"><label>開始日期<input type="date" id="st-entered"></label><label>完成日期<input type="date" id="st-done"></label></div>
-  <fieldset class="vis"><legend>推進到下一階段前，必須完成</legend>
+  <fieldset class="vis"><legend>標記這個階段完成前，必須做到</legend>
     <label><input type="checkbox" id="st-gate-docs"> 我方文件全部已確認</label>
     <label><input type="checkbox" id="st-gate-check"> 要做的事全部勾完</label>
-    <label><input type="checkbox" id="st-gate-feat"> 功能清單全部完成</label>
-    <small>沒達成時推進鈕會鎖住並列出缺什麼；負責人仍可按「略過條件推進」處理例外。</small>
+    <small>沒達成時「完成這個階段」會鎖住並列出缺什麼；仍可按「略過條件完成」處理例外。階段可以同時好幾個在進行中。</small>
   </fieldset>
-  <p class="hint">推進階段時會自動記錄這兩個日期，事後也可以在這裡修正。</p>
-  <p class="hint">文件、要做的事、功能清單都在階段頁上直接增刪，不用進這個表單。</p>
+  <p class="hint">按「開始」「完成這個階段」時會自動記錄這兩個日期，事後也可以在這裡修正。</p>
+  <p class="hint">文件、要做的事都在階段頁上直接增刪，不用進這個表單。</p>
   <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存階段</button></div>
 </form></dialog>
 
