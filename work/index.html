@@ -10,7 +10,7 @@
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><span class="brand-mark">案</span><div><strong>專案現場</strong><small>工作版原型</small></div></div>
-    <div class="workspace" role="group" aria-label="切換工作區"><a href="../私人版/index.html" class="ws"><span class="ws-dot ws-dot-personal"></span>私人</a><a href="../工作版/index.html" class="ws active" aria-current="page"><span class="ws-dot ws-dot-work"></span>工作</a></div>
+    <div class="workspace" role="group" aria-label="切換工作區"><a href="../personal/index.html" class="ws"><span class="ws-dot ws-dot-personal"></span>私人</a><a href="../work/index.html" class="ws active" aria-current="page"><span class="ws-dot ws-dot-work"></span>工作</a></div>
     <nav aria-label="主要導覽">
       <button data-view="overview" class="nav active"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> 專案總覽</button>
       <div id="project-nav" class="project-nav"></div>
@@ -68,7 +68,7 @@
         </div>
 
         <div id="tab-tracking" class="tab-panel" hidden>
-          <div class="panel" id="tasks-panel"><div class="section-title"><div><h2>任務</h2><p>每項任務掛在一個階段下，並標記誰看得到。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div><button class="text-button" id="add-task" data-need="owner member">＋ 任務</button></div><div id="tasks"></div></div>
+          <div class="panel" id="tasks-panel"><div class="section-title"><div><h2>任務 <span class="count" id="task-count"></span></h2><p>每項任務掛在一個階段下，並標記誰看得到。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div><div class="task-tools"><label class="toggle"><input type="checkbox" id="show-done"> 顯示已完成</label><button class="text-button" id="add-task" data-need="owner member">＋ 任務</button></div></div><div id="tasks"></div></div>
           <div class="two-col">
             <div class="panel" id="confirms-panel"><div class="section-title"><div><h2>待客戶確認</h2><p>卡住進度、等客戶回覆的事。</p></div><button class="text-button" data-add-item="confirm" data-need="owner member">＋ 待確認</button></div><div id="confirms"></div></div>
             <div class="panel" id="changes-panel"><div class="section-title"><div><h2>變更需求</h2><p>範圍外的需求在這裡追蹤報價狀態。</p></div><button class="text-button" data-add-item="change" data-need="owner member">＋ 變更</button></div><div id="changes"></div></div>
@@ -133,6 +133,19 @@
     <label><input type="checkbox" id="t-vis-client"> 客戶</label>
     <label><input type="checkbox" id="t-vis-vendor"> 供應商</label>
     <small>內部同事一律看得到。</small>
+  </fieldset>
+  <label>相關連結（一行一個，可寫「標題 | 網址」；郵件、Google 文件、Notion、本機檔案路徑都可以）<textarea id="t-links" placeholder="UAT 回饋信 | https://mail.google.com/...&#10;/Users/.../SIT報告.pdf"></textarea></label>
+  <fieldset class="vis notion-fields" id="t-notion-wrap"><legend>Notion 待交付表欄位</legend>
+    <label class="check-line"><input type="checkbox" id="t-sync"> 同步到 Notion 待交付表</label>
+    <div class="form-grid">
+      <label>期限開始（區間才填）<input type="date" id="t-due-start"></label>
+      <label id="t-confirm-wrap">待確認方<input id="t-confirm" maxlength="20" list="t-owner-list"></label>
+    </div>
+    <label>期限說明<input id="t-due-note" maxlength="200"></label>
+    <label>依據<input id="t-basis" maxlength="200"></label>
+    <label>備註<textarea id="t-note" maxlength="2000"></textarea></label>
+    <datalist id="t-owner-list"></datalist>
+    <small id="t-notion-hint">勾選後會寫進公司 review 用的 Notion 表；共用給外部的表，期限說明／依據／備註一律當對外內容寫。相關連結不會同步。</small>
   </fieldset>
   <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存任務</button></div>
 </form></dialog>

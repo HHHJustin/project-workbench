@@ -43,7 +43,7 @@
 
 **自己用**：
 1. 下載或 clone 這個 repo。
-2. 用 Chrome 開 `工作版/index.html` 或 `私人版/index.html`（雙擊即可，不需要伺服器）。
+2. 用 Chrome 開 `work/index.html` 或 `personal/index.html`（雙擊即可，不需要伺服器）。
 3. 右上角按「連結 iCloud 資料夾」，選 `data/`。之後每次改動自動寫入 JSON；另一台電腦連同一個資料夾就共用資料。
 4. 之後每次開啟按一下「重新連結」（瀏覽器規定每個工作階段要使用者點一下）。
 
@@ -58,7 +58,7 @@
 
 ## 資料結構（給想改的人）
 
-- `工作版/app.js` 開頭的 `TEMPLATES` 是階段範本，`ROLE` 是權限矩陣（之後搬到服務端照抄即可）。
+- `work/app.js` 開頭的 `TEMPLATES` 是階段範本，`ROLE` 是權限矩陣（之後搬到服務端照抄即可）。
 - 每個 `style.css` 開頭的 CSS 變數是改色入口。
 - `shared/storage.js` 是兩版共用的儲存模組。
 - 新版程式載入舊資料時會自動補欄位，不用手動遷移。

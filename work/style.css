@@ -478,6 +478,31 @@ fieldset.vis small{display:block;color:var(--ink-3);margin-top:6px;font-size:12.
 .check label .light{margin-left:2px}
 td .light{margin-right:8px}
 
+/* ---------- 任務表：連結膠囊、Notion 標記、補充說明 ---------- */
+.task-tools{display:flex;align-items:center;gap:8px}
+.toggle{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink-3);cursor:pointer;white-space:nowrap}
+.toggle input{width:16px;height:16px;margin:0}
+.task-table tr.is-done td{color:var(--ink-3)}
+.task-table tr.is-done td:first-child{text-decoration:line-through;text-decoration-color:var(--ink-4)}
+.task-table td.due{white-space:nowrap}
+.task-table td.due small{color:var(--ink-3);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;font-size:12px;font-weight:500;padding:1px 8px;border-radius:6px;text-decoration:none;background:var(--gray-soft);color:var(--ink-2);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:1px;transition:filter .15s}
+.chip:hover{filter:brightness(.95)}
+.chip.mail{background:var(--red-soft);color:var(--red)}
+.chip.gdoc{background:var(--accent-soft);color:var(--accent-deep)}
+.chip.notion,.chip.notion-row{background:var(--ink);color:#fff}
+.chip.notion-row{font-family:Georgia,serif;font-weight:800;padding:0 6px}
+.chip.file{background:var(--amber-soft);color:var(--amber)}
+.chip.figma{background:var(--purple-soft);color:var(--purple)}
+.chip.pending-sync{background:var(--amber-soft);color:var(--amber)}
+.task-extra{display:block;font-size:12.5px;color:var(--ink-3);font-weight:400;margin-top:4px;line-height:1.55;max-width:60ch}
+.notion-fields .check-line{display:flex;align-items:center;gap:8px;margin-top:4px;font-weight:600;color:var(--ink)}
+.notion-fields .check-line input{width:16px;height:16px;margin:0}
+fieldset.notion-fields .form-grid label,fieldset.notion-fields>label:not(.check-line){display:block;margin:10px 0 0}
+fieldset.notion-fields label input:not([type=checkbox]),fieldset.notion-fields label textarea{display:block;width:100%;margin-top:6px}
+fieldset.notion-fields textarea{min-height:72px}
+
 /* ---------- 開會模式：全螢幕蓋在最上層，字級放大一級，操作鈕都藏起來 ---------- */
 body.in-meeting{overflow:hidden}
 .meeting{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding:28px 44px 48px;font-size:17px;animation:view-in .3s var(--ease) both}

@@ -25,6 +25,21 @@ const lightsBadge = ({ red, amber }) => (red || amber) ? `<span class="lights" t
 // 文件的 owner 決定「誰要交」：client 代表客戶提供，我方只需確認收到。
 // checklist 是這個階段「要做的事」的預設清單，建案後可以自由增刪；功能清單依專案不同，範本不預設。
 const TEMPLATES = {
+  standard: {
+    name: '標準流程（九階段）',
+    hint: '依公司 PM 流程規範的九個檢查點：規劃、客戶合約、供應商合約、Kick off、需求訪談、SOW 定案、設計、開發測試、驗收結案。',
+    stages: [
+      { id: 'plan', name: '初步規劃', exit: '功能清單、WBS、Sitemap 初版完成', docs: [{ name: '功能清單（初版）', owner: 'ours', vis: [] }, { name: 'WBS／甘特圖（初版）', owner: 'ours', vis: [] }, { name: 'Sitemap（初版）', owner: 'ours', vis: ['client'] }], checklist: ['接獲任務後 3 個工作日內完成初版功能清單、WBS、Sitemap'] },
+      { id: 'contract', name: '客戶合約', exit: '客戶合約簽署', docs: [{ name: '報價單', owner: 'ours', vis: ['client'] }, { name: '客戶合約', owner: 'ours', vis: ['client'] }], checklist: ['客戶資料表／工商查核', '合約健檢後送簽'] },
+      { id: 'vendor', name: '供應商合約', exit: '供應商合約用印完成（客戶合約先簽）', docs: [{ name: '供應商評選紀錄', owner: 'ours', vis: [] }, { name: '供應商報價單', owner: 'vendor', vis: ['vendor'] }, { name: '供應商合約', owner: 'ours', vis: ['vendor'] }], checklist: ['確認客戶合約已簽，再啟動供應商合約'] },
+      { id: 'kickoff', name: 'Kick off', exit: '內外部 Kick off 完成並發出會議記錄', docs: [{ name: '內部 Kick off 簡報', owner: 'ours', vis: [] }, { name: '內部 Kick off 會議記錄', owner: 'ours', vis: [] }, { name: '外部 Kick off 簡報', owner: 'ours', vis: ['client'] }, { name: '外部 Kick off 會議記錄', owner: 'ours', vis: ['client'] }], checklist: ['Kick off 前 2 天備妥簡報', '內部 Kick off 後 4～7 個工作日辦外部 Kick off', '會後 2 個工作日內發會議記錄'] },
+      { id: 'req', name: '需求訪談', exit: '各場次訪談完成、需求追溯表更新', docs: [{ name: '需求追溯表', owner: 'ours', vis: [] }, { name: '訪談議題表', owner: 'ours', vis: ['client'] }, { name: '訪談會議記錄', owner: 'ours', vis: ['client'] }], checklist: ['訪談前 1 天完成需求追溯表', '各場次訪前 2 天備妥議題表', '會後 2 個工作日內發會議記錄'] },
+      { id: 'sow', name: 'SOW／功能清單定案', exit: '功能清單定版、SOW 客戶確認', docs: [{ name: '功能清單（定版）', owner: 'ours', vis: ['client', 'vendor'] }, { name: 'SOW', owner: 'ours', vis: ['client'] }, { name: 'SA 系統分析書', owner: 'vendor', vis: ['vendor'] }, { name: '任務分派紀錄', owner: 'ours', vis: [] }], checklist: ['訪談全部完成後 2 天內功能清單定版', '訪談結束後 5 個工作天內完成 SOW（含 1 天內部審核）', '功能清單定版後 1 天內完成任務分派'] },
+      { id: 'design', name: 'UX／UI 設計', exit: '客戶簽核設計稿', docs: [{ name: 'Wireframe', owner: 'ours', vis: ['client'] }, { name: 'UI 精稿', owner: 'ours', vis: ['client', 'vendor'] }, { name: '設計階段驗收單', owner: 'client', vis: ['client'] }], checklist: ['任務到期前 2 天完成設計稿', '設計稿送客戶簽核'] },
+      { id: 'dev', name: '開發／測試（SIT）', exit: '功能完成、SIT 通過', docs: [{ name: '架構決策文件', owner: 'vendor', vis: ['vendor'] }, { name: 'Test Case', owner: 'vendor', vis: ['client', 'vendor'] }, { name: 'SIT 測試報告', owner: 'vendor', vis: ['client'] }, { name: 'Bug 清單', owner: 'ours', kind: 'notion', vis: ['client', 'vendor'] }], checklist: ['SIT 開始前 7 個工作日收到供應商 Test Case', '每週一 Review 前更新 WBS／進度'] },
+      { id: 'accept', name: '驗收／結案', exit: '客戶簽收驗收單、資料夾歸檔', docs: [{ name: 'UAT 紀錄', owner: 'ours', kind: 'notion', vis: ['client'] }, { name: 'SA 規格（終版）', owner: 'vendor', vis: ['client'] }, { name: 'API 文件', owner: 'vendor', vis: ['client'] }, { name: 'DB 文件', owner: 'vendor', vis: ['client'] }, { name: '操作手冊', owner: 'vendor', vis: ['client'] }, { name: '驗收單', owner: 'client', vis: ['client'] }], checklist: ['交付前 2 日備齊驗收文件', '上線後 30 天觀察期無重大瑕疵再簽驗收單', '結案：資料夾歸檔、狀態轉完成'] },
+    ],
+  },
   frontend: {
     name: '切版案（客戶提供設計）',
     hint: '適合純前端切版：設計稿由客戶提供，沒有我方設計階段。',
@@ -154,14 +169,22 @@ function initial() {
 // 舊資料補欄位：11-09 以前存的專案沒有 checklist／features／日期／推進條件
 function normalize(data) {
   if (!data || !Array.isArray(data.projects)) return initial();
+  for (const p of data.projects) for (const s of p.stages) if (s.seed) {
+    const t = TEMPLATES[s.seed.template]?.stages[s.seed.index];
+    if (t) { s.exit ||= t.exit; s.docs = t.docs.map(d => ({ id: uid(), name: d.name, owner: d.owner, kind: d.kind || 'file', status: 'na', url: '', vis: [...d.vis], confirmedOn: '' })); s.checklist = (t.checklist || []).map(text => ({ id: uid(), text, done: false, due: '' })); }
+    delete s.seed;
+  }
   for (const p of data.projects) for (const s of p.stages) { s.checklist ??= []; s.features ??= []; s.enteredOn ??= ''; s.doneOn ??= ''; s.gate ??= { docs: true, checklist: false, features: false }; s.docs.forEach(d => d.confirmedOn ??= ''); s.checklist.forEach(c => c.due ??= ''); }
   return data;
 }
 let state;
 try { state = normalize(JSON.parse(localStorage.getItem(KEY))); } catch { state = initial(); }
-let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = null, editing = null, meeting = false;
+let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = null, editing = null, meeting = false, showDone = false;
 
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { alert('瀏覽器無法保存資料。'); } VaultStore.save(); }
+const stamp = () => new Date().toISOString();
+// 時間顯示：今天只顯示時分，其他日子加月日
+const fmtTime = iso => { if (!iso) return '—'; const d = new Date(iso); const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return localISO(d) === today() ? `今天 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`; };
+function save() { const p = project(); if (p) p.updatedAt = stamp(); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { alert('瀏覽器無法保存資料。'); } VaultStore.save(); }
 const project = () => state.projects.find(p => p.id === currentId);
 const can = key => ROLE[role][key];
 const personName = (p, id) => p.people.find(u => u.id === id)?.name || '未指定';
@@ -171,6 +194,15 @@ const visible = item => visibleFor(role)(item);
 // 供應商只看自己人負責的任務或被標記給供應商的任務；客戶只看標記給客戶的
 const visibleTasks = p => { const mode = can('tasks'); return p.tasks.filter(t => mode === 'all' || t.vis.includes(mode) || personSide(p, t.assignee) === mode); };
 const fmtDate = s => s ? s.slice(5).replace('-', '/') : '—';
+// 跟上次同步到 Notion 的值比，有不同就代表還沒推出去（欄位與同步腳本一致）
+const notionDirty = t => { if (!t.sync) return false; const s = t.notion?.synced; if (!s) return true; const p = project(); const owner = p?.people.find(u => u.id === t.assignee)?.name || ''; const v = { name: t.name || '', owner, done: t.status === 'done', due: t.due || '', dueStart: t.dueStart || '', dueNote: t.dueNote || '', basis: t.basis || '', note: t.note || '', confirmBy: t.confirmBy || '' }; return Object.keys(v).some(k => (v[k] ?? '') !== (s[k] ?? '')); };
+// 相關連結：一行一個「標題 | 網址」或只有網址；本機路徑轉成 file:// 才能從頁面點開
+const LINK_KIND = [[/mail\.google\.com|outlook\./, 'mail', '郵件'], [/notion\.(so|com)/, 'notion', 'Notion'], [/docs\.google\.com|drive\.google\.com/, 'gdoc', 'Google'], [/^file:/, 'file', '檔案'], [/figma\.com/, 'figma', 'Figma']];
+const linkKind = url => (LINK_KIND.find(([re]) => re.test(url)) || [0, 'web', '連結']).slice(1);
+const normUrl = u => u.startsWith('/') || u.startsWith('~') ? 'file://' + encodeURI(u.replace(/^~/, '')) : /^[a-z]+:/i.test(u) ? u : 'https://' + u;
+function parseLinks(text) { return text.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const i = l.lastIndexOf(' | '); const [label, raw] = i > -1 ? [l.slice(0, i).trim(), l.slice(i + 3).trim()] : ['', l]; const url = normUrl(raw); return { label: label || decodeURI(url.split('/').filter(Boolean).pop() || url).slice(0, 40), url }; }); }
+const linksText = links => (links || []).map(l => l.label ? `${l.label} | ${l.url.startsWith('file://') ? decodeURI(l.url.slice(7)) : l.url}` : l.url).join('\n');
+const linkChips = links => (links || []).map(l => { const [k, name] = linkKind(l.url); return `<a class="chip ${k}" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">${name}・${esc(l.label)}</a>`; }).join('');
 
 const I = (d, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
 const ICONS = {
@@ -225,7 +257,7 @@ function renderOverview() {
       <div class="project-head"><div><h2>${esc(p.name)}</h2><p class="client">${esc(p.client)} · 負責人 ${esc(p.owner)}</p></div>${donut(percent)}</div>
       <div class="stage-line"><span class="pill doing">${esc(stage.name)}</span><span>第 ${p.stageIndex + 1} / ${p.stages.length} 階段</span><span class="dim">${lightsBadge(lightCounts(p))}任務 ${done} / ${tasks.length}</span></div>
       <p class="goal">${esc(p.goal)}</p>
-      <div class="project-foot"><span class="meta">${ICONS.flag}${next ? esc(next.name) + ' · ' + fmtDate(next.date) : '里程碑全部完成'}</span>${can('confirms') ? `<span class="meta ${open ? 'warn' : ''}">${ICONS.inbox}待客戶確認 ${open} 件</span>` : ''}</div></article>`;
+      <div class="project-foot"><span class="meta" title="最後更新">${ICONS.clock}${fmtTime(p.updatedAt)}</span><span class="meta">${ICONS.flag}${next ? esc(next.name) + ' · ' + fmtDate(next.date) : '里程碑全部完成'}</span>${can('confirms') ? `<span class="meta ${open ? 'warn' : ''}">${ICONS.inbox}待客戶確認 ${open} 件</span>` : ''}</div></article>`;
   }).join('') || empty('box', '還沒有專案', '建立第一個案子，先把目標與範圍寫清楚。', 'panel');
   $('#project-nav').innerHTML = projects.map(p => `<button class="nav ${p.id === currentId ? 'active' : ''}" data-open="${p.id}">${esc(p.name)}</button>`).join('');
 }
@@ -302,8 +334,13 @@ function renderStageDetail(p, s, docs) {
 }
 
 function renderTracking(p) {
-  const tasks = visibleTasks(p);
-  $('#tasks').innerHTML = tasks.length ? `<table><thead><tr><th>任務</th><th>負責人</th><th>到期</th><th>階段</th><th>狀態</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${tasks.map(t => `<tr><td>${light(t.due, t.status === 'done')}${esc(t.name)}${t.vis.length && can('edit') ? `<br><small class="hint">可見：${t.vis.map(v => ROLE[v].label).join('、')}</small>` : ''}</td><td>${esc(personName(p, t.assignee))}</td><td>${esc(t.due || '—')}</td><td>${esc(p.stages.find(s => s.id === t.stage)?.name || '—')}</td><td>${pill(t.status, TASK_STATUS[t.status], can('edit') ? `data-cycle-task="${t.id}"` : '')}</td>${can('edit') ? `<td class="actions">${iconBtn('edit', `data-edit-task="${t.id}"`, '修改')}${iconBtn('trash', `data-del="tasks:${t.id}"`, '刪除')}</td>` : ''}</tr>`).join('')}</tbody></table>` : empty('check', '沒有你看得到的任務', '目前沒有分配給這個身分的工作。');
+  const all = visibleTasks(p), doneCount = all.filter(t => t.status === 'done').length;
+  // 未完成在前、依期限排；沒期限的放最後
+  const tasks = all.filter(t => showDone || t.status !== 'done').sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.due || '9999').localeCompare(b.due || '9999'));
+  $('#task-count').textContent = `${all.length - doneCount} 未完成 / ${all.length}`;
+  $('#show-done').checked = showDone;
+  const extra = t => [t.dueNote && `期限：${esc(t.dueNote)}`, t.note && can('edit') && `備註：${esc(t.note)}`].filter(Boolean).join('<br>');
+  $('#tasks').innerHTML = tasks.length ? `<table class="task-table"><thead><tr><th>任務</th><th>負責人</th><th>到期</th><th>階段</th><th>狀態</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${tasks.map(t => `<tr class="${t.status === 'done' ? 'is-done' : ''}"><td>${light(t.due, t.status === 'done')}${esc(t.name)}${notionDirty(t) && can('edit') ? ` <span class="chip pending-sync" title="${t.notion?.url ? '有改動，下次同步會更新 Notion' : '下次同步時會新增到 Notion'}">待同步</span>` : ''}${(t.links || []).length ? `<div class="chips">${linkChips(t.links)}</div>` : ''}${extra(t) ? `<small class="task-extra">${extra(t)}</small>` : ''}${t.vis.length && can('edit') ? `<small class="hint">可見：${t.vis.map(v => ROLE[v].label).join('、')}</small>` : ''}</td><td>${esc(personName(p, t.assignee))}</td><td class="due">${t.dueStart ? `<small>${esc(t.dueStart)} →</small><br>` : ''}${esc(t.due || '—')}</td><td>${esc(p.stages.find(s => s.id === t.stage)?.name || '—')}</td><td>${pill(t.status, TASK_STATUS[t.status], can('edit') ? `data-cycle-task="${t.id}"` : '')}</td>${can('edit') ? `<td class="actions">${iconBtn('edit', `data-edit-task="${t.id}"`, '修改')}${iconBtn('trash', `data-del="tasks:${t.id}"`, '刪除')}</td>` : ''}</tr>`).join('')}</tbody></table>` : empty('check', all.length ? '未完成的任務都清空了' : '沒有你看得到的任務', all.length ? `已完成 ${doneCount} 件，勾「顯示已完成」可以看。` : '目前沒有分配給這個身分的工作。');
 
   $('#confirms-panel').hidden = !can('confirms');
   $('#confirms').innerHTML = p.confirms.map(c => `<div class="row"><div>${esc(c.text)}<small>提出於 ${esc(c.askedOn)}</small></div><div class="ops">${pill(c.status, c.status === 'open' ? '等待回覆' : '已回覆', (can('edit') || role === 'client') ? `data-cycle-confirm="${c.id}"` : '')}${can('edit') ? iconBtn('trash', `data-del="confirms:${c.id}"`, '刪除') : ''}</div></div>`).join('') || empty('check', '目前沒有等客戶回覆的事', '進度沒有卡在對方手上。');
@@ -323,7 +360,7 @@ function renderProject() {
   $('#p-client').textContent = p.client + ' · ' + TEMPLATES[p.template].name;
   $('#p-name').textContent = p.name;
   const fact = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
-  $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('目前階段', esc(p.stages[p.stageIndex].name))}${fact('你的身分', ROLE[role].label)}</dl>`;
+  $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('目前階段', esc(p.stages[p.stageIndex].name))}${fact('你的身分', ROLE[role].label)}${fact('最後更新', fmtTime(p.updatedAt))}${p.notionSync && can('edit') ? fact('Notion 同步', `<span title="上次比對 ${esc(fmtTime(p.notionSync.lastChecked))}">${fmtTime(p.notionSync.lastSynced)}</span>${p.tasks.some(t => notionDirty(t)) ? ' <span class="chip pending-sync" title="工作台有改動還沒推到 Notion">待同步</span>' : ''}`) : ''}</dl>`;
   renderSummary(p); renderStages(p); renderTracking(p);
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
   document.querySelectorAll('.tab-panel').forEach(el => el.hidden = el.id !== 'tab-' + currentTab);
@@ -371,7 +408,7 @@ function openProjectDialog(p) {
   $('#f-template').innerHTML = Object.entries(TEMPLATES).map(([k, t]) => `<option value="${k}">${esc(t.name)}</option>`).join('');
   $('#f-template').disabled = !!p; // 已建立的專案不換範本，否則階段與文件狀態會對不上；要改階段直接在階段頁改
   $('#f-name').value = p?.name || ''; $('#f-client').value = p?.client || ''; $('#f-owner').value = p?.owner || '';
-  $('#f-start').value = p?.start || ''; $('#f-due').value = p?.due || ''; $('#f-template').value = p?.template || 'system';
+  $('#f-start').value = p?.start || ''; $('#f-due').value = p?.due || ''; $('#f-template').value = p?.template || 'standard';
   $('#f-goal').value = p?.goal || ''; $('#f-scope-in').value = (p?.scopeIn || []).join('\n'); $('#f-scope-out').value = (p?.scopeOut || []).join('\n');
   $('#template-hint').textContent = TEMPLATES[$('#f-template').value].hint + ' 建立後階段仍可自由增刪與改名。';
   $('#project-dialog').showModal();
@@ -415,12 +452,23 @@ function openTaskDialog(t) {
   $('#t-name').value = t?.name || ''; $('#t-assignee').value = t?.assignee || ''; $('#t-due').value = t?.due || '';
   $('#t-stage').value = t?.stage || p.stages[p.stageIndex].id; $('#t-status').value = t?.status || 'todo';
   $('#t-vis-client').checked = !!t?.vis.includes('client'); $('#t-vis-vendor').checked = !!t?.vis.includes('vendor');
+  $('#t-links').value = linksText(t?.links);
+  const ns = p.notionSync;
+  $('#t-notion-wrap').hidden = !ns;
+  if (ns) {
+    $('#t-sync').checked = t ? !!t.sync : false; $('#t-sync').disabled = !!t?.notion?.url; // 已連到 Notion 的列不能取消，避免兩邊斷線
+    $('#t-due-start').value = t?.dueStart || ''; $('#t-due-note').value = t?.dueNote || ''; $('#t-basis').value = t?.basis || ''; $('#t-note').value = t?.note || '';
+    $('#t-confirm-wrap').hidden = !ns.hasConfirmBy; $('#t-confirm').value = t?.confirmBy || '';
+    $('#t-owner-list').innerHTML = p.people.map(u => `<option value="${esc(u.name)}">`).join('');
+  }
   $('#task-dialog').showModal();
 }
 $('#task-form').onsubmit = e => {
   e.preventDefault(); const p = project();
   const vis = [$('#t-vis-client').checked && 'client', $('#t-vis-vendor').checked && 'vendor'].filter(Boolean);
-  const t = { id: editing || uid(), name: $('#t-name').value.trim(), assignee: $('#t-assignee').value, due: $('#t-due').value, stage: $('#t-stage').value, status: $('#t-status').value, vis };
+  const prev = editing ? p.tasks.find(x => x.id === editing) : null;
+  const t = { ...(prev || {}), id: editing || uid(), name: $('#t-name').value.trim(), assignee: $('#t-assignee').value, due: $('#t-due').value, stage: $('#t-stage').value, status: $('#t-status').value, vis, links: parseLinks($('#t-links').value) };
+  if (p.notionSync) Object.assign(t, { sync: prev?.notion?.url ? true : $('#t-sync').checked, dueStart: $('#t-due').value ? $('#t-due-start').value : '', dueNote: $('#t-due-note').value.trim(), basis: $('#t-basis').value.trim(), note: $('#t-note').value.trim(), confirmBy: $('#t-confirm').value.trim() });
   if (!t.name) return;
   if (editing) p.tasks = p.tasks.map(x => x.id === editing ? t : x); else p.tasks.push(t);
   save(); $('#task-dialog').close(); render();
@@ -542,7 +590,7 @@ document.addEventListener('click', e => {
     const msg = (b.id === 'force-advance' ? '推進條件尚未全部達成，仍要' : '') + '推進到「' + p.stages[p.stageIndex + 1].name + '」？';
     if (confirm(msg)) { const cur = p.stages[p.stageIndex], next = p.stages[p.stageIndex + 1]; cur.doneOn ||= today(); next.enteredOn ||= today(); p.stageIndex++; selectedStage = p.stageIndex; save(); render(); }
   }
-  if (d.del) { const [list, id] = d.del.split(':'); if (confirm('確定刪除？')) { p[list] = p[list].filter(x => x.id !== id); save(); render(); } }
+  if (d.del) { const [list, id] = d.del.split(':'); const item = p[list].find(x => x.id === id); if (confirm(item?.notion?.url ? '這筆有同步到 Notion。刪除後下次同步會列出來讓你決定 Notion 那列要不要刪，確定刪除？' : '確定刪除？')) { if (item?.notion?.url) p.notionSync.removed.push(item.notion.url); p[list] = p[list].filter(x => x.id !== id); save(); render(); } }
   // 階段本身的增刪改與排序
   if ('editStage' in d) openStageDialog('edit');
   if ('addStage' in d) openStageDialog('add');
@@ -569,6 +617,7 @@ document.addEventListener('click', e => {
   if (d.delFeature) { const s = p.stages[selectedStage]; s.features = s.features.filter(f => f.id !== d.delFeature); save(); render(); }
 });
 $('#role').onchange = e => { role = e.target.value; render(); };
+$('#show-done').onchange = e => { showDone = e.target.checked; render(); };
 // 從網址 hash 還原上次停留的專案與分頁
 { const [id, tab] = location.hash.slice(1).split('/'); if (state.projects.some(p => p.id === id)) { currentId = id; if (['summary', 'stages', 'tracking'].includes(tab)) currentTab = tab; if (tab === 'meeting') meeting = true; } }
 render();
