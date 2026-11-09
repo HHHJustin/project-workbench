@@ -38,6 +38,20 @@
         </div>
         <div id="kpis" class="kpis"></div>
         <div id="projects-list" class="projects"></div>
+        <section class="cal-section" aria-label="月曆">
+          <h2 class="section-title">本月任務</h2>
+        <div class="cal-bar">
+          <strong id="cal-label"></strong>
+          <label class="cal-filter">負責方<select id="cal-side"><option value="">全部</option><option value="internal">內部</option><option value="client">客戶</option><option value="vendor">供應商</option></select></label>
+          <label class="cal-filter"><input type="checkbox" id="cal-hide-done"> 隱藏已完成</label>
+          <span class="spacer"></span>
+          <button class="outline cal-nav" data-cal-move="-1" aria-label="上個月"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="outline" data-cal-move="0">今天</button>
+          <button class="outline cal-nav" data-cal-move="1" aria-label="下個月"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="cal" id="cal-grid"></div>
+        <p class="cal-note">區間型期限排在結束那天；沒有到期日的任務不會出現在日曆上。</p>
+        </section>
       </section>
 
       <section id="project-view" class="view" hidden>

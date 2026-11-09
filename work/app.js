@@ -203,13 +203,14 @@ function normalize(data) {
 }
 let state;
 try { state = normalize(JSON.parse(localStorage.getItem(KEY))); } catch { state = initial(); }
+let calPid = null, calMonth = today().slice(0, 7), calSide = '', calHideDone = false;
 let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = null, editing = null, meeting = false, showDone = false, sprintFilter = '';
 
 const stamp = () => new Date().toISOString();
 // 時間顯示：今天只顯示時分，其他日子加月日
 const fmtTime = iso => { if (!iso) return '—'; const d = new Date(iso); const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return localISO(d) === today() ? `今天 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`; };
 function save() { const p = project(); if (p) { p.updatedAt = stamp(); syncPrimary(p); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { alert('瀏覽器無法保存資料。'); } VaultStore.save(); }
-const project = () => state.projects.find(p => p.id === currentId);
+const project = () => state.projects.find(p => p.id === (calPid || currentId));
 const can = key => ROLE[role][key];
 const personName = (p, id) => p.people.find(u => u.id === id)?.name || '未指定';
 const personSide = (p, id) => p.people.find(u => u.id === id)?.side || 'internal';
@@ -416,6 +417,7 @@ function render() {
   document.querySelectorAll('[data-need]').forEach(b => b.hidden = !b.dataset.need.split(' ').includes(role));
   renderOverview();
   $('#overview-view').hidden = !!currentId;
+  if (!currentId) renderCalendar();
   $('#project-view').hidden = !currentId;
   $('#breadcrumb').textContent = currentId ? project().name : '專案總覽';
   history.replaceState(null, '', currentId ? `#${currentId}/${currentTab}` : location.pathname + location.search);
@@ -426,6 +428,33 @@ function render() {
   document.body.classList.toggle('in-meeting', meeting);
   if (meeting) { renderMeeting(); history.replaceState(null, '', `#${currentId}/meeting`); }
 }
+
+// 月曆（放在專案總覽下方）：所有專案的任務依到期日排進月曆（週日開頭，跟 Notion 一樣）；區間型排在結束那天
+const shortName = p => p.short || p.name.trim().split(/[\s｜|]/)[0];
+function renderCalendar() {
+  const [y, m] = calMonth.split('-').map(Number);
+  $('#cal-label').textContent = `${y} 年 ${m} 月`;
+  const items = state.projects.flatMap(p => visibleTasks(p)
+    .filter(t => t.due && (!calSide || personSide(p, t.assignee) === calSide) && !(calHideDone && t.status === 'done'))
+    .map(t => ({ p, t })));
+  const first = new Date(y, m - 1, 1), start = new Date(y, m - 1, 1 - first.getDay());
+  const weeks = Math.ceil((first.getDay() + new Date(y, m, 0).getDate()) / 7);
+  const head = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'].map(d => `<div class="cal-head">${d}</div>`).join('');
+  const cells = Array.from({ length: weeks * 7 }, (_, i) => {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const iso = localISO(d), out = d.getMonth() !== m - 1, wk = d.getDay() === 0 || d.getDay() === 6;
+    const cards = items.filter(x => x.t.due === iso).map(({ p, t }) => {
+      const light = lightOf(t.due, t.status === 'done');
+      const range = t.dueStart && t.dueStart !== t.due ? `<small>${fmtDate(t.dueStart)}–${fmtDate(t.due)}</small>` : '';
+      return `<button type="button" class="cal-card light-${light}" data-cal-task="${p.id}:${t.id}" title="${esc(p.name + '｜' + t.name)}"><span class="cal-title">【${esc(shortName(p))}】${esc(t.name)}</span>${range}<span class="pill ${t.status}">${TASK_STATUS[t.status]}</span></button>`;
+    }).join('');
+    return `<div class="cal-cell${out ? ' out' : ''}${wk ? ' weekend' : ''}"><span class="cal-day${iso === today() ? ' today' : ''}">${d.getDate() === 1 ? `${d.getMonth() + 1}月1日` : d.getDate()}</span>${cards}</div>`;
+  }).join('');
+  $('#cal-grid').innerHTML = head + cells;
+}
+$('#cal-side').onchange = e => { calSide = e.target.value; render(); };
+$('#cal-hide-done').onchange = e => { calHideDone = e.target.checked; render(); };
+$('#task-dialog').addEventListener('close', () => { if (calPid) { calPid = null; render(); } });
 
 // 開會模式：全螢幕、大字、只顯示客戶看得到的內容（投影時不會露出內部任務、決策、風險）；底部可直接記下決策或待確認
 function renderMeeting() {
@@ -646,6 +675,8 @@ const cycle = (order, cur) => order[(order.indexOf(cur) + 1) % order.length];
 document.addEventListener('click', e => {
   const b = e.target.closest('button, [data-open]'); if (!b) return; const p = project(); const d = b.dataset;
   if (d.view === 'overview') { currentId = null; render(); return; }
+  if (d.calMove) { const n = Number(d.calMove); if (!n) calMonth = today().slice(0, 7); else { const [y, m] = calMonth.split('-').map(Number); const t = new Date(y, m - 1 + n, 1); calMonth = localISO(t).slice(0, 7); } render(); return; }
+  if (d.calTask) { const [pid, tid] = d.calTask.split(':'); calPid = pid; const t = project()?.tasks.find(x => x.id === tid); if (!t || !can('edit')) { calPid = null; return; } openTaskDialog(t); return; }
   if (d.open) { currentId = d.open; currentTab = 'summary'; selectedStage = null; render(); return; }
   if (d.tab) { currentTab = d.tab; render(); return; }
   if (b.classList.contains('close')) { b.closest('dialog').close(); return; }
