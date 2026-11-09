@@ -165,12 +165,25 @@ function initial() {
   p1.stages.find(s => s.id === 'dev').features = [feat('歡迎頁', 'done'), feat('報到輸入頁（預約碼＋手機）', 'done'), feat('確認頁', 'done'), feat('號碼牌頁', 'done'), feat('虛擬鍵盤', 'done')];
   p2.stages.find(s => s.id === 'dev').features = [feat('會員資料整合 API', 'doing'), feat('點數規則引擎', 'doing'), feat('等級升降規則', 'todo'), feat('後台會員列表與查詢', 'todo'), feat('後台手動調整點數', 'todo')];
   for (const p of [p1, p2]) p.stages.forEach((s, i) => s.status = i < p.stageIndex ? 'done' : i === p.stageIndex ? 'doing' : 'todo');
+  // 示例迭代：系統案的開發階段跑兩週一個 Sprint
+  const dev = p2.stages.find(s => s.id === 'dev');
+  dev.sprints = [
+    { id: 'sp1', name: 'Sprint 1', start: '2026-10-20', end: '2026-11-02', goal: '會員資料整合 API 可在測試環境呼叫', status: 'done' },
+    { id: 'sp2', name: 'Sprint 2', start: '2026-11-03', end: '2026-11-16', goal: '點數規則引擎與後台列表頁可給客戶試用', status: 'doing' },
+    { id: 'sp3', name: 'Sprint 3', start: '2026-11-17', end: '2026-11-30', goal: '等級升降規則與整合測試', status: 'todo' },
+  ];
+  Object.assign(p2.tasks.find(t => t.id === 't1'), { sprint: 'sp1' }); Object.assign(p2.tasks.find(t => t.id === 't2'), { sprint: 'sp2' }); Object.assign(p2.tasks.find(t => t.id === 't3'), { sprint: 'sp2' });
   return { projects: [p1, p2] };
 }
 
 // 階段狀態：每個階段各自是 todo／doing／done，可以同時好幾個「進行中」（例如上線送審與弱掃並行）。
 // p.stageIndex 只是「主要階段」，由狀態推算，留著給同步腳本與舊程式用。
 const STAGE_STATUS = { todo: '尚未開始', doing: '進行中', done: '已完成' };
+// 迭代：Sprint 掛在階段底下（不另開階段），只有開啟過的階段才顯示。任務用 task.sprint 指向 Sprint id。
+const allSprints = p => p.stages.flatMap(s => (s.sprints || []).map(sp => ({ ...sp, stageId: s.id, stageName: s.name })));
+const findSprint = (p, id) => { for (const s of p.stages) { const sp = (s.sprints || []).find(x => x.id === id); if (sp) return { s, sp }; } };
+const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return localISO(d); };
+const sprintRange = sp => sp.start || sp.end ? `${fmtDate(sp.start)}–${fmtDate(sp.end)}` : '未排日期';
 const activeStages = p => p.stages.filter(s => s.status === 'doing');
 const primaryIndex = p => { const i = p.stages.findIndex(s => s.status === 'doing'); if (i > -1) return i; const j = p.stages.findIndex(s => s.status !== 'done'); return j > -1 ? j : p.stages.length - 1; };
 const activeNames = p => { const a = activeStages(p); return a.length ? a.map(s => s.name).join('、') : (p.stages.every(s => s.status === 'done') ? '全部完成' : '尚未開始'); };
@@ -179,7 +192,7 @@ const syncPrimary = p => { p.stageIndex = primaryIndex(p); };
 // 舊資料補欄位：11-09 以前存的專案沒有 checklist／features／日期／推進條件／階段狀態
 function normalize(data) {
   if (!data || !Array.isArray(data.projects)) return initial();
-  for (const p of data.projects) { p.stages.forEach((s, i) => { s.status ??= i < (p.stageIndex ?? 0) ? 'done' : i === (p.stageIndex ?? 0) ? 'doing' : 'todo'; }); syncPrimary(p); }
+  for (const p of data.projects) { p.stages.forEach(s => { s.sprints ??= []; }); p.stages.forEach((s, i) => { s.status ??= i < (p.stageIndex ?? 0) ? 'done' : i === (p.stageIndex ?? 0) ? 'doing' : 'todo'; }); syncPrimary(p); }
   for (const p of data.projects) for (const s of p.stages) if (s.seed) {
     const t = TEMPLATES[s.seed.template]?.stages[s.seed.index];
     if (t) { s.exit ||= t.exit; s.docs = t.docs.map(d => ({ id: uid(), name: d.name, owner: d.owner, kind: d.kind || 'file', status: 'na', url: '', vis: [...d.vis], confirmedOn: '' })); s.checklist = (t.checklist || []).map(text => ({ id: uid(), text, done: false, due: '' })); }
@@ -190,7 +203,7 @@ function normalize(data) {
 }
 let state;
 try { state = normalize(JSON.parse(localStorage.getItem(KEY))); } catch { state = initial(); }
-let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = null, editing = null, meeting = false, showDone = false;
+let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = null, editing = null, meeting = false, showDone = false, sprintFilter = '';
 
 const stamp = () => new Date().toISOString();
 // 時間顯示：今天只顯示時分，其他日子加月日
@@ -336,17 +349,43 @@ function renderStageDetail(p, s, docs) {
     <div class="section-title"><div><h3>${ICONS.doc} 要交付的文件 <span class="count">${docs.filter(d => d.status === 'confirmed').length}/${docs.length}</span></h3><p>範本先給預設，實際要交什麼在這裡增刪。</p></div>${edit ? `<button class="text-button" data-add-doc="${selectedStage}">＋ 文件</button>` : ''}</div>
     <div class="doc-list">${docsHtml}</div>
   </div>
+  ${sprintPanel(p, s, edit)}
   ${can('checklist') ? `<div class="panel internal"><div class="section-title"><div><h3>${ICONS.check} 要做的事 <span class="count">${checkDone}/${s.checklist.length}</span> <span class="badge">內部</span></h3><p>這個階段自己要跑完的步驟，勾掉就好。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div></div><div class="check-list">${checkHtml}</div>${addForm('check', '新增一件要做的事…')}</div>` : ''}`;
+}
+
+function sprintPanel(p, s, edit) {
+  const sprints = s.sprints || [];
+  if (!sprints.length) return edit ? `<div class="sprint-off"><button class="text-button" data-add-sprint>＋ 這個階段用迭代（Sprint）進行</button><span class="hint inline">適合開發這類分批交付的階段；開了之後任務可以指定 Sprint。</span></div>` : '';
+  const tasks = visibleTasks(p);
+  const cards = sprints.map((sp, i) => {
+    const ts = tasks.filter(t => t.sprint === sp.id), done = ts.filter(t => t.status === 'done').length;
+    const percent = ts.length ? Math.round(done / ts.length * 100) : 0;
+    const c = { red: ts.filter(t => lightOf(t.due, t.status === 'done') === 'red').length, amber: ts.filter(t => lightOf(t.due, t.status === 'done') === 'amber').length };
+    return `<div class="sprint ${sp.status}">
+      <div class="sprint-head"><strong>${esc(sp.name)}</strong>${pill(sp.status, STAGE_STATUS[sp.status], edit ? `data-cycle-sprint="${sp.id}"` : '')}</div>
+      <div class="sprint-dates">${ICONS.clock}${sprintRange(sp)}${sp.status !== 'done' && sp.end && sp.end < today() ? ' <span class="warn-text">已超過結束日</span>' : ''}</div>
+      <p class="sprint-goal">${sp.goal ? esc(sp.goal) : '<span class="hint inline">還沒寫目標</span>'}</p>
+      <div class="sprint-foot"><div class="bar"><span style="width:${percent}%"></span></div><span>任務 ${done}/${ts.length}</span>${lightsBadge(c)}${edit ? iconBtn('edit', `data-edit-sprint="${sp.id}"`, '編輯 Sprint') : ''}</div>
+      ${ts.length ? `<button class="text-button small" data-filter-sprint="${sp.id}">看這個 Sprint 的任務 →</button>` : ''}
+    </div>`;
+  }).join('');
+  const doing = sprints.find(x => x.status === 'doing');
+  return `<div class="panel"><div class="section-title"><div><h3>${ICONS.layers} 迭代 <span class="count">${sprints.filter(x => x.status === 'done').length}/${sprints.length}</span></h3><p>${doing ? `目前：${esc(doing.name)}（${sprintRange(doing)}）` : '階段裡的開發節奏；合約與驗收仍看外層階段。'}</p></div>${edit ? '<button class="text-button" data-add-sprint>＋ Sprint</button>' : ''}</div><div class="sprints">${cards}</div></div>`;
 }
 
 function renderTracking(p) {
   const all = visibleTasks(p), doneCount = all.filter(t => t.status === 'done').length;
   // 未完成在前、依期限排；沒期限的放最後
-  const tasks = all.filter(t => showDone || t.status !== 'done').sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.due || '9999').localeCompare(b.due || '9999'));
+  const sprints = allSprints(p);
+  if (sprintFilter && !sprints.some(sp => sp.id === sprintFilter)) sprintFilter = '';
+  $('#sprint-filter').hidden = !sprints.length;
+  $('#sprint-filter').innerHTML = '<option value="">全部 Sprint</option>' + sprints.map(sp => `<option value="${sp.id}">${esc(sp.name)}（${esc(sp.stageName)}）</option>`).join('') + '<option value="__none">未排 Sprint</option>';
+  $('#sprint-filter').value = sprintFilter;
+  const tasks = all.filter(t => showDone || t.status !== 'done').filter(t => !sprintFilter || (sprintFilter === '__none' ? !t.sprint : t.sprint === sprintFilter)).sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.due || '9999').localeCompare(b.due || '9999'));
   $('#task-count').textContent = `${all.length - doneCount} 未完成 / ${all.length}`;
   $('#show-done').checked = showDone;
   const extra = t => [t.dueNote && `期限：${esc(t.dueNote)}`, t.note && can('edit') && `備註：${esc(t.note)}`].filter(Boolean).join('<br>');
-  $('#tasks').innerHTML = tasks.length ? `<table class="task-table"><thead><tr><th>任務</th><th>負責人</th><th>到期</th><th>階段</th><th>狀態</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${tasks.map(t => `<tr class="${t.status === 'done' ? 'is-done' : ''}"><td>${light(t.due, t.status === 'done')}${esc(t.name)}${notionDirty(t) && can('edit') ? ` <span class="chip pending-sync" title="${t.notion?.url ? '有改動，下次同步會更新 Notion' : '下次同步時會新增到 Notion'}">待同步</span>` : ''}${(t.links || []).length ? `<div class="chips">${linkChips(t.links)}</div>` : ''}${extra(t) ? `<small class="task-extra">${extra(t)}</small>` : ''}${t.vis.length && can('edit') ? `<small class="hint">可見：${t.vis.map(v => ROLE[v].label).join('、')}</small>` : ''}</td><td>${esc(personName(p, t.assignee))}</td><td class="due">${t.dueStart ? `<small>${esc(t.dueStart)} →</small><br>` : ''}${esc(t.due || '—')}</td><td>${esc(p.stages.find(s => s.id === t.stage)?.name || '—')}</td><td>${pill(t.status, TASK_STATUS[t.status], can('edit') ? `data-cycle-task="${t.id}"` : '')}</td>${can('edit') ? `<td class="actions">${iconBtn('edit', `data-edit-task="${t.id}"`, '修改')}${iconBtn('trash', `data-del="tasks:${t.id}"`, '刪除')}</td>` : ''}</tr>`).join('')}</tbody></table>` : empty('check', all.length ? '未完成的任務都清空了' : '沒有你看得到的任務', all.length ? `已完成 ${doneCount} 件，勾「顯示已完成」可以看。` : '目前沒有分配給這個身分的工作。');
+  $('#tasks').innerHTML = tasks.length ? `<table class="task-table"><thead><tr><th>任務</th><th>負責人</th><th>到期</th><th>階段</th><th>狀態</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${tasks.map(t => `<tr class="${t.status === 'done' ? 'is-done' : ''}"><td>${light(t.due, t.status === 'done')}${esc(t.name)}${notionDirty(t) && can('edit') ? ` <span class="chip pending-sync" title="${t.notion?.url ? '有改動，下次同步會更新 Notion' : '下次同步時會新增到 Notion'}">待同步</span>` : ''}${t.sprint && findSprint(p, t.sprint) ? ` <span class="chip sprint-chip">${esc(findSprint(p, t.sprint).sp.name)}</span>` : ''}${(t.links || []).length ? `<div class="chips">${linkChips(t.links)}</div>` : ''}${extra(t) ? `<small class="task-extra">${extra(t)}</small>` : ''}${t.vis.length && can('edit') ? `<small class="hint">可見：${t.vis.map(v => ROLE[v].label).join('、')}</small>` : ''}</td><td>${esc(personName(p, t.assignee))}</td><td class="due">${t.dueStart ? `<small>${esc(t.dueStart)} →</small><br>` : ''}${esc(t.due || '—')}</td><td>${esc(p.stages.find(s => s.id === t.stage)?.name || '—')}</td><td>${pill(t.status, TASK_STATUS[t.status], can('edit') ? `data-cycle-task="${t.id}"` : '')}</td>${can('edit') ? `<td class="actions">${iconBtn('edit', `data-edit-task="${t.id}"`, '修改')}${iconBtn('trash', `data-del="tasks:${t.id}"`, '刪除')}</td>` : ''}</tr>`).join('')}</tbody></table>` : empty('check', all.length ? '未完成的任務都清空了' : '沒有你看得到的任務', all.length ? `已完成 ${doneCount} 件，勾「顯示已完成」可以看。` : '目前沒有分配給這個身分的工作。');
 
   $('#confirms-panel').hidden = !can('confirms');
   $('#confirms').innerHTML = p.confirms.map(c => `<div class="row"><div>${esc(c.text)}<small>提出於 ${esc(c.askedOn)}</small></div><div class="ops">${pill(c.status, c.status === 'open' ? '等待回覆' : '已回覆', (can('edit') || role === 'client') ? `data-cycle-confirm="${c.id}"` : '')}${can('edit') ? iconBtn('trash', `data-del="confirms:${c.id}"`, '刪除') : ''}</div></div>`).join('') || empty('check', '目前沒有等客戶回覆的事', '進度沒有卡在對方手上。');
@@ -395,7 +434,7 @@ function renderMeeting() {
   const canNote = can('edit'), canAnswer = canNote || role === 'client';
   const list = (items, map, emptyText) => items.length ? items.map(map).join('') : `<p class="m-empty">${emptyText}</p>`;
   $('#meeting-view').innerHTML = `
-    <div class="m-bar"><div><p class="eyebrow">開會模式 · 只顯示客戶看得到的內容</p><h1>${esc(p.name)}</h1><p class="m-sub">${esc(p.client)} · 進行中：${esc(activeNames(p))} · ${today()}</p></div><button class="outline" id="meeting-exit">結束開會模式 (Esc)</button></div>
+    <div class="m-bar"><div><p class="eyebrow">開會模式 · 只顯示客戶看得到的內容</p><h1>${esc(p.name)}</h1><p class="m-sub">${esc(p.client)} · 進行中：${esc(activeNames(p))} · ${today()}</p>${allSprints(p).filter(sp => sp.status === 'doing').map(sp => `<p class="m-sprint">${ICONS.layers}<b>${esc(sp.name)}</b>${sprintRange(sp)}${sp.goal ? '｜' + esc(sp.goal) : ''}</p>`).join('')}</div><button class="outline" id="meeting-exit">結束開會模式 (Esc)</button></div>
     <div class="panel stepper-panel"><div class="stepper">${stepperHtml(p, 'client').replaceAll('data-stage=', 'data-noop=')}</div></div>
     <div class="m-grid">
       <div class="panel"><h2>${ICONS.doc} 進行中階段要交付的文件</h2>${list(docs, d => `<div class="m-row"><span class="row-icon ${d.kind === 'notion' ? 'notion' : d.owner}">${d.kind === 'notion' ? 'N' : ICONS.doc}</span><div><strong>${esc(d.name)}</strong><small>${act.length > 1 ? esc(d.stageName) + ' · ' : ''}${d.owner === 'ours' ? '我方提供' : d.owner === 'client' ? '客戶提供' : '供應商提供'}${d.confirmedOn ? ' · 已確認 ' + esc(d.confirmedOn) : ''}</small></div>${pill(d.status, DOC_STATUS[d.status], canNote ? `data-cycle-doc="${d.id}"` : '')}</div>`, '進行中的階段沒有要給客戶看的文件。')}</div>
@@ -456,6 +495,7 @@ function openTaskDialog(t) {
   $('#t-stage').innerHTML = p.stages.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   $('#t-name').value = t?.name || ''; $('#t-assignee').value = t?.assignee || ''; $('#t-due').value = t?.due || '';
   $('#t-stage').value = t?.stage || p.stages[primaryIndex(p)].id; $('#t-status').value = t?.status || 'todo';
+  fillSprintSelect(t?.sprint || '');
   $('#t-vis-client').checked = !!t?.vis.includes('client'); $('#t-vis-vendor').checked = !!t?.vis.includes('vendor');
   $('#t-links').value = linksText(t?.links);
   const ns = p.notionSync;
@@ -468,11 +508,19 @@ function openTaskDialog(t) {
   }
   $('#task-dialog').showModal();
 }
+// 所屬 Sprint 只列出所選階段的 Sprint；階段沒開迭代就隱藏
+function fillSprintSelect(value) {
+  const st = project().stages.find(s => s.id === $('#t-stage').value), sps = st?.sprints || [];
+  $('#t-sprint-wrap').hidden = !sps.length;
+  $('#t-sprint').innerHTML = '<option value="">未排 Sprint</option>' + sps.map(sp => `<option value="${sp.id}">${esc(sp.name)}（${sprintRange(sp)}）</option>`).join('');
+  $('#t-sprint').value = sps.some(sp => sp.id === value) ? value : '';
+}
+$('#t-stage').onchange = () => fillSprintSelect($('#t-sprint').value);
 $('#task-form').onsubmit = e => {
   e.preventDefault(); const p = project();
   const vis = [$('#t-vis-client').checked && 'client', $('#t-vis-vendor').checked && 'vendor'].filter(Boolean);
   const prev = editing ? p.tasks.find(x => x.id === editing) : null;
-  const t = { ...(prev || {}), id: editing || uid(), name: $('#t-name').value.trim(), assignee: $('#t-assignee').value, due: $('#t-due').value, stage: $('#t-stage').value, status: $('#t-status').value, vis, links: parseLinks($('#t-links').value) };
+  const t = { ...(prev || {}), id: editing || uid(), name: $('#t-name').value.trim(), assignee: $('#t-assignee').value, due: $('#t-due').value, stage: $('#t-stage').value, sprint: $('#t-sprint').value, status: $('#t-status').value, vis, links: parseLinks($('#t-links').value) };
   if (p.notionSync) Object.assign(t, { sync: prev?.notion?.url ? true : $('#t-sync').checked, dueStart: $('#t-due').value ? $('#t-due-start').value : '', dueNote: $('#t-due-note').value.trim(), basis: $('#t-basis').value.trim(), note: $('#t-note').value.trim(), confirmBy: $('#t-confirm').value.trim() });
   if (!t.name) return;
   if (editing) p.tasks = p.tasks.map(x => x.id === editing ? t : x); else p.tasks.push(t);
@@ -525,6 +573,33 @@ $('#doc-delete').onclick = () => {
   const found = findDoc(editing); if (!found) return;
   if (!confirm('刪除文件「' + found.d.name + '」？')) return;
   found.s.docs = found.s.docs.filter(x => x.id !== editing); save(); $('#doc-dialog').close(); render();
+};
+
+// Sprint 表單：新增時名稱自動編號、日期接在上一個 Sprint 後面兩週
+function openSprintDialog(id) {
+  const st = project().stages[selectedStage], sps = st.sprints ||= [];
+  const sp = id ? sps.find(x => x.id === id) : null; editing = sp?.id || null;
+  const last = sps[sps.length - 1], start = last?.end ? addDays(last.end, 1) : (st.enteredOn && st.enteredOn > today() ? st.enteredOn : today());
+  $('#sprint-dialog-title').textContent = sp ? '編輯 ' + sp.name : '新增 Sprint 到「' + st.name + '」';
+  $('#sp-name').value = sp?.name || 'Sprint ' + (sps.length + 1); $('#sp-goal').value = sp?.goal || '';
+  $('#sp-start').value = sp ? sp.start : start; $('#sp-end').value = sp ? sp.end : addDays(start, 13);
+  $('#sp-status').value = sp?.status || (sps.some(x => x.status === 'doing') ? 'todo' : 'doing');
+  $('#sprint-delete').hidden = !sp;
+  $('#sprint-dialog').showModal();
+}
+$('#sprint-form').onsubmit = e => {
+  e.preventDefault(); const st = project().stages[selectedStage];
+  const v = { name: $('#sp-name').value.trim(), start: $('#sp-start').value, end: $('#sp-end').value, goal: $('#sp-goal').value.trim(), status: $('#sp-status').value };
+  if (!v.name) return;
+  if (editing) Object.assign(st.sprints.find(x => x.id === editing), v); else st.sprints.push({ id: uid(), ...v });
+  save(); $('#sprint-dialog').close(); render();
+};
+$('#sprint-delete').onclick = () => {
+  const p = project(), st = p.stages[selectedStage], sp = st.sprints.find(x => x.id === editing); if (!sp) return;
+  const n = p.tasks.filter(t => t.sprint === sp.id).length;
+  if (!confirm(`刪除「${sp.name}」？${n ? `${n} 項任務會變成「未排 Sprint」，任務本身不會刪。` : ''}`)) return;
+  p.tasks.forEach(t => { if (t.sprint === sp.id) t.sprint = ''; });
+  st.sprints = st.sprints.filter(x => x.id !== sp.id); save(); $('#sprint-dialog').close(); render();
 };
 
 let smallType = null;
@@ -617,17 +692,22 @@ document.addEventListener('click', e => {
     const s = p.stages[selectedStage];
     const linked = p.tasks.filter(t => t.stage === s.id).length;
     if (!confirm(`刪除階段「${s.name}」？${s.docs.length ? `裡面的 ${s.docs.length} 份文件會一起刪除。` : ''}${linked ? `${linked} 項任務會變成「未指定階段」。` : ''}`)) return;
-    p.tasks.forEach(t => { if (t.stage === s.id) t.stage = ''; });
+    p.tasks.forEach(t => { if (t.stage === s.id) { t.stage = ''; t.sprint = ''; } });
     p.stages.splice(selectedStage, 1);
     selectedStage = Math.min(selectedStage, p.stages.length - 1); save(); render();
   }
   // 要做的事、功能清單
+  if ('addSprint' in d) openSprintDialog();
+  if (d.editSprint) openSprintDialog(d.editSprint);
+  if (d.cycleSprint) { const { sp } = findSprint(p, d.cycleSprint); sp.status = cycle(['todo', 'doing', 'done'], sp.status); save(); render(); }
+  if (d.filterSprint) { sprintFilter = d.filterSprint; currentTab = 'tracking'; render(); }
   if (d.delCheck) { const s = p.stages[selectedStage]; s.checklist = s.checklist.filter(c => c.id !== d.delCheck); save(); render(); }
   if (d.cycleFeature) { const f = p.stages.flatMap(s => s.features).find(f => f.id === d.cycleFeature); f.status = cycle(['todo', 'doing', 'done'], f.status); save(); render(); }
   if (d.delFeature) { const s = p.stages[selectedStage]; s.features = s.features.filter(f => f.id !== d.delFeature); save(); render(); }
 });
 $('#role').onchange = e => { role = e.target.value; render(); };
 $('#show-done').onchange = e => { showDone = e.target.checked; render(); };
+$('#sprint-filter').onchange = e => { sprintFilter = e.target.value; render(); };
 // 從網址 hash 還原上次停留的專案與分頁
 { const [id, tab] = location.hash.slice(1).split('/'); if (state.projects.some(p => p.id === id)) { currentId = id; if (['summary', 'stages', 'tracking'].includes(tab)) currentTab = tab; if (tab === 'meeting') meeting = true; } }
 render();

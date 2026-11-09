@@ -68,7 +68,7 @@
         </div>
 
         <div id="tab-tracking" class="tab-panel" hidden>
-          <div class="panel" id="tasks-panel"><div class="section-title"><div><h2>任務 <span class="count" id="task-count"></span></h2><p>每項任務掛在一個階段下，並標記誰看得到。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div><div class="task-tools"><label class="toggle"><input type="checkbox" id="show-done"> 顯示已完成</label><button class="text-button" id="add-task" data-need="owner member">＋ 任務</button></div></div><div id="tasks"></div></div>
+          <div class="panel" id="tasks-panel"><div class="section-title"><div><h2>任務 <span class="count" id="task-count"></span></h2><p>每項任務掛在一個階段下，並標記誰看得到。燈號：<span class="light red"></span>今天或已過期 <span class="light amber"></span>本週 <span class="light green"></span>還有時間 <span class="light none"></span>沒設期限</p></div><div class="task-tools"><select id="sprint-filter" class="mini-select" aria-label="依 Sprint 篩選" hidden></select><label class="toggle"><input type="checkbox" id="show-done"> 顯示已完成</label><button class="text-button" id="add-task" data-need="owner member">＋ 任務</button></div></div><div id="tasks"></div></div>
           <div class="two-col">
             <div class="panel" id="confirms-panel"><div class="section-title"><div><h2>待客戶確認</h2><p>卡住進度、等客戶回覆的事。</p></div><button class="text-button" data-add-item="confirm" data-need="owner member">＋ 待確認</button></div><div id="confirms"></div></div>
             <div class="panel" id="changes-panel"><div class="section-title"><div><h2>變更需求</h2><p>範圍外的需求在這裡追蹤報價狀態。</p></div><button class="text-button" data-add-item="change" data-need="owner member">＋ 變更</button></div><div id="changes"></div></div>
@@ -127,6 +127,7 @@
     <label>到期日<input type="date" id="t-due"></label>
     <label>所屬階段<select id="t-stage"></select></label>
     <label>狀態<select id="t-status"><option value="todo">待辦</option><option value="doing">進行中</option><option value="done">完成</option></select></label>
+    <label id="t-sprint-wrap">所屬 Sprint<select id="t-sprint"></select></label>
   </div>
   <fieldset class="vis"><legend>誰看得到</legend>
     <label><input type="checkbox" id="t-vis-client"> 客戶</label>
@@ -176,6 +177,15 @@
     <label><input type="checkbox" id="d-vis-vendor"> 供應商</label>
   </fieldset>
   <div class="dialog-actions"><button type="button" class="text-button danger" id="doc-delete">刪除這份文件</button><span class="spacer"></span><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存文件</button></div>
+</form></dialog>
+
+<dialog id="sprint-dialog"><form id="sprint-form">
+  <div class="dialog-head"><div><p class="eyebrow">迭代</p><h2 id="sprint-dialog-title">新增 Sprint</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>名稱<input id="sp-name" required maxlength="40" placeholder="例如：Sprint 1"></label>
+  <div class="form-grid"><label>開始<input type="date" id="sp-start"></label><label>結束<input type="date" id="sp-end"></label></div>
+  <label>這個 Sprint 的目標（一句話）<input id="sp-goal" maxlength="120" placeholder="例如：會員登入與點數查詢可以給客戶試用"></label>
+  <label>狀態<select id="sp-status"><option value="todo">尚未開始</option><option value="doing">進行中</option><option value="done">已完成</option></select></label>
+  <div class="dialog-actions"><button type="button" class="text-button danger" id="sprint-delete">刪除這個 Sprint</button><span class="spacer"></span><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
 </form></dialog>
 
 <dialog id="small-dialog"><form id="small-form">

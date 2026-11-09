@@ -506,6 +506,30 @@ fieldset.notion-fields .form-grid label,fieldset.notion-fields>label:not(.check-
 fieldset.notion-fields label input:not([type=checkbox]),fieldset.notion-fields label textarea{display:block;width:100%;margin-top:6px}
 fieldset.notion-fields textarea{min-height:72px}
 
+/* ---------- 迭代：Sprint 卡片橫排，進行中的藍框、完成的淡掉 ---------- */
+.sprint-off{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px 18px}
+.sprints{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.sprint{border:1px solid var(--line);border-radius:var(--radius-m);padding:14px 16px;background:var(--card);display:grid;gap:8px;align-content:start}
+.sprint.doing{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.sprint.done{background:var(--hover)}
+.sprint.done .sprint-head strong{color:var(--ink-3)}
+.sprint-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sprint-head strong{font-size:15px}
+.sprint-dates{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.sprint-dates svg{width:14px;height:14px}
+.sprint-goal{margin:0;font-size:14px;color:var(--ink-2);line-height:1.6}
+.sprint-foot{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.sprint-foot .bar{flex:1;height:6px;border-radius:999px;background:var(--gray-soft);overflow:hidden}
+.sprint-foot .bar span{display:block;height:100%;background:var(--accent);border-radius:999px}
+.sprint.done .sprint-foot .bar span{background:var(--green)}
+.sprint-foot .lights{margin-right:0}
+.text-button.small{min-height:28px;padding:2px 8px;font-size:12.5px;justify-self:start}
+.chip.sprint-chip{background:var(--accent-soft);color:var(--accent-deep)}
+.mini-select{width:auto;min-height:34px;padding:5px 10px;font-size:13px}
+.m-sprint{display:flex;align-items:center;gap:8px;margin:6px 0 0;font-size:15px;color:var(--ink-2)}
+.m-sprint svg{color:var(--accent)}
+.m-sprint b{color:var(--ink)}
+
 /* ---------- 開會模式：全螢幕蓋在最上層，字級放大一級，操作鈕都藏起來 ---------- */
 body.in-meeting{overflow:hidden}
 .meeting{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding:28px 44px 48px;font-size:17px;animation:view-in .3s var(--ease) both}
