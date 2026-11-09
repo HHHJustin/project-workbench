@@ -186,11 +186,11 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.005em}
 .kpi.message:has(.over) .kpi-icon{background:var(--red-soft);color:var(--red)}
 
 /* ---------- 七日週曆 ---------- */
-.week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;align-items:stretch}
+.week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;align-items:stretch}
 .day{
   background:var(--card);min-width:0;min-height:280px;
   border:1px solid var(--line);border-radius:var(--radius-m);
-  padding:14px 12px 12px;box-shadow:var(--shadow-s);
+  padding:12px 9px 10px;box-shadow:var(--shadow-s);
   transition:border-color .2s,box-shadow .2s,background .2s;
 }
 .day-head{display:flex;justify-content:space-between;gap:6px;align-items:baseline;margin-bottom:4px}
@@ -202,11 +202,11 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.005em}
 .day.today .day-head::after{content:"今天";order:-1;margin-right:auto;font-size:11px;color:#fff;background:var(--accent);padding:1px 7px;border-radius:999px;font-weight:600}
 .day.today .day-head strong{order:-2;margin-right:8px}
 
-/* 任務卡：左側色條分專案（綠）／生活（琥珀），hover 微浮、拖曳時略傾斜 */
+/* 任務卡：週曆欄很窄，所以標題吃滿卡寬（勾選框浮在第一行左側）、時間不折行、操作用小圖示滑過才出現 */
 .task{
   background:#fff;border:1px solid var(--line);border-left:3px solid var(--accent);
-  border-radius:var(--radius-s);padding:10px 10px 8px;margin-bottom:8px;
-  font-size:14px;line-height:1.5;overflow-wrap:anywhere;cursor:grab;
+  border-radius:var(--radius-s);padding:9px 9px 6px 10px;margin-bottom:8px;
+  font-size:13.5px;line-height:1.45;cursor:grab;position:relative;
   box-shadow:var(--shadow-s);
   transition:transform .22s var(--ease),box-shadow .22s var(--ease),opacity .2s;
 }
@@ -214,16 +214,27 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.005em}
 .task:active{cursor:grabbing}
 .task.life{background:#fffcf5;border-color:#f1deb3;border-left-color:var(--amber)}
 .task.done{opacity:.55}
-.task.done label span{text-decoration:line-through;text-decoration-color:var(--ink-4)}
-.task label{display:flex;gap:8px;align-items:flex-start;min-width:0;cursor:pointer}
-.task label span{min-width:0;overflow-wrap:anywhere;font-weight:500}
+.task.done .task-name{text-decoration:line-through;text-decoration-color:var(--ink-4)}
+.task-row{display:block;cursor:pointer}
+.task-row input[type="checkbox"]{float:left;width:15px;height:15px;margin:2px 7px 0 0}
+.task-name{font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word}
+/* 所屬專案：欄位窄，名稱太長就自動換行，完整顯示 */
+.task-project{margin-top:5px;font-size:11.5px;line-height:1.4;font-weight:600;color:var(--accent-deep);background:var(--accent-soft);padding:2px 7px;border-radius:5px;display:block;max-width:100%;width:fit-content;overflow-wrap:anywhere}
+.task.life .task-project{color:var(--amber);background:var(--amber-soft)}
+.task-meta{display:flex;flex-wrap:wrap;gap:2px 8px;margin-top:5px;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.task-meta span{white-space:nowrap}
 input[type="checkbox"]{width:17px;height:17px;padding:0;flex:0 0 17px;accent-color:var(--accent);margin:0}
-.task input[type="checkbox"]{margin-top:2px}
-.task small{display:block;font-size:12.5px;color:var(--ink-3);margin:4px 0 0 25px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.task-actions{display:flex;flex-wrap:nowrap;gap:0;margin:6px 0 0 -2px;opacity:.55;transition:opacity .2s}
+/* 操作鈕平常不占位置，滑過時浮在卡片右上角 */
+.task-actions{position:absolute;top:5px;right:5px;display:flex;gap:1px;padding:2px;border-radius:8px;background:rgba(255,255,255,.96);box-shadow:var(--shadow-s);opacity:0;pointer-events:none;transition:opacity .15s}
+.task:hover .task-actions,.task:focus-within .task-actions{pointer-events:auto}
 .task:hover .task-actions,.task:focus-within .task-actions{opacity:1}
-.task-actions button,.row-actions button{border:0;background:transparent;min-height:26px;padding:2px 6px;color:var(--ink-2);font-size:12.5px;border-radius:6px;white-space:nowrap}
-.task-actions button:hover,.row-actions button:hover{background:var(--accent-soft);color:var(--accent-deep)}
+.task-actions button{border:0;background:transparent;width:26px;height:26px;padding:0;display:grid;place-items:center;color:var(--ink-3);border-radius:6px}
+.task-actions svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.task-actions button:hover{background:var(--accent-soft);color:var(--accent-deep)}
+.task-actions button.danger:hover{background:var(--red-soft);color:var(--red)}
+.row-actions button{border:0;background:transparent;min-height:26px;padding:2px 6px;color:var(--ink-2);font-size:12.5px;border-radius:6px;white-space:nowrap}
+.row-actions button:hover{background:var(--accent-soft);color:var(--accent-deep)}
+@media(hover:none){.task-actions{position:static;opacity:1;pointer-events:auto;box-shadow:none;background:none;justify-content:flex-end;margin-top:4px}}
 .dragging{opacity:.4;transform:rotate(1.5deg) scale(.98)}
 .drop-target{border-style:dashed;border-color:var(--accent);background:var(--accent-tint);box-shadow:inset 0 0 0 1px var(--accent)}
 .time-conflict,.time-error{color:var(--red);font-size:12.5px;line-height:1.5}
