@@ -33,7 +33,7 @@
 
       <section id="overview-view" class="view">
         <div class="title-row">
-          <div><p class="eyebrow">所有專案</p><h1>現在每個案子走到哪</h1><p class="subtitle">目前階段、下個里程碑、還有幾件事等客戶回覆。</p></div>
+          <div><p class="eyebrow">所有專案</p><h1>現在每個案子走到哪</h1><p class="subtitle">目前階段、今天到期的事、還有幾件事等客戶回覆。</p></div>
           <button class="primary" id="add-project" data-need="owner">＋ 新增專案</button>
         </div>
         <div id="kpis" class="kpis"></div>
@@ -42,9 +42,10 @@
 
       <section id="project-view" class="view" hidden>
         <div class="title-row">
-          <div><p class="eyebrow" id="p-client"></p><h1 id="p-name"></h1><div class="facts" id="p-facts"></div></div>
+          <div><p class="eyebrow" id="p-client"></p><div class="title-line"><button class="outline back-btn" data-view="overview" title="回到所有專案" aria-label="回到所有專案"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><h1 id="p-name"></h1></div></div>
           <div class="title-actions"><button class="outline" id="meeting-toggle"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg> 開會模式</button><button class="outline" id="edit-project" data-need="owner">編輯基本資料</button></div>
         </div>
+        <div class="facts" id="p-facts"></div>
         <div class="tabs" role="tablist">
           <button class="tab active" data-tab="summary">概況</button>
           <button class="tab" data-tab="stages">階段與文件</button>

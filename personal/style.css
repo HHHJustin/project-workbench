@@ -196,6 +196,15 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.005em}
 .day-head{display:flex;justify-content:space-between;gap:6px;align-items:baseline;margin-bottom:4px}
 .day-head strong{font-size:15.5px;font-weight:700}
 .day-head span{color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}
+/* 日常行程：週曆每天最上方的色塊，跨天的每天都會出現 */
+.event-chip{display:block;width:100%;text-align:left;border:0;margin:6px 0 2px;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;line-height:1.4;cursor:pointer;overflow-wrap:anywhere;background:var(--accent-soft);color:var(--accent-deep)}
+.event-chip.trip{background:#e6eefc;color:#2b57b8}
+.event-chip.important{background:var(--red-soft);color:var(--red)}
+.event-chip.rest{background:var(--amber-soft);color:var(--amber)}
+.event-chip:hover{filter:brightness(.96)}
+.week-actions{display:flex;gap:8px;flex-wrap:wrap}
+.check-line{display:flex!important;align-items:center;gap:8px}
+.check-line input{width:16px;height:16px}
 .day-cap{font-size:12.5px;color:var(--ink-3);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);font-variant-numeric:tabular-nums}
 .day-cap.over{color:var(--red);font-weight:600}
 .day.today{background:var(--accent-tint);border-color:#bfe5d2}
@@ -323,7 +332,9 @@ form{padding:28px}
 form label{display:block;font-size:13.5px;color:var(--ink-2);margin-top:14px;font-weight:500}
 form label input,form label select,form label textarea{display:block;margin-top:6px;font-weight:400}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
-.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+.dialog-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:24px}
+.spacer{flex:1}
+.text-button.danger{color:var(--red)}
 .capacity-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:14.5px}
 .capacity-row input{width:110px;display:inline-block}
 .note-entry{padding:12px 0;border-bottom:1px solid var(--line-soft);font-size:14.5px;line-height:1.7}

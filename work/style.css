@@ -152,7 +152,9 @@ header b{margin:0 8px;color:var(--ink-4);font-weight:400}
 /* ---------- 標題區 ---------- */
 .title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}
 .title-row>div:first-child{min-width:0}
-.title-actions{display:flex;gap:8px;flex-shrink:0;padding-top:30px}
+.title-actions{display:flex;gap:8px;flex-shrink:0;padding-top:22px}
+.title-line{display:flex;align-items:center;gap:12px;margin-bottom:10px}.title-line h1{margin:0}
+.back-btn{width:38px;height:38px;padding:0;display:grid;place-items:center;flex:0 0 38px}.back-btn svg{width:18px;height:18px;stroke-width:2.4}
 .eyebrow{color:var(--accent);font-size:12.5px;margin:0 0 8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 h1{font-size:clamp(24px,2.2vw,30px);letter-spacing:-.015em;line-height:1.3;margin:0 0 10px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
 h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.005em}
@@ -163,11 +165,14 @@ h3 svg{color:var(--accent);width:18px;height:18px}
 .section-title h3{margin:0}
 
 /* 專案資訊表格：取代原本一句話的 meta */
-.facts dl{display:flex;flex-wrap:wrap;margin:6px 0 0;border:1px solid var(--line);border-radius:var(--radius-m);background:var(--card);overflow:hidden;box-shadow:var(--shadow-s)}
-.facts dl>div{padding:10px 18px;border-right:1px solid var(--line-soft);min-width:120px}
+/* 專案資訊表格維持一列不換行，欄位依內容寬度排；真的太長就在表格內橫向捲動 */
+.facts{margin:-8px 0 22px}
+.facts dl{display:flex;flex-wrap:nowrap;margin:0;border:1px solid var(--line);border-radius:var(--radius-m);background:var(--card);overflow-x:auto;box-shadow:var(--shadow-s);width:fit-content;max-width:100%}
+.facts dl>div{padding:10px 14px;border-right:1px solid var(--line-soft);flex:0 0 auto}
 .facts dl>div:last-child{border-right:0}
 .facts dt{font-size:12px;color:var(--ink-3);letter-spacing:.04em;margin-bottom:2px}
-.facts dd{margin:0;font-size:14.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.facts dd{margin:0;font-size:14.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.facts dt{white-space:nowrap}
 
 /* ---------- 按鈕 ---------- */
 .primary,.outline,.text-button,.icon{
@@ -583,7 +588,9 @@ body.in-meeting{overflow:hidden}
   .content{padding:20px 16px}
   .title-row{flex-direction:column;align-items:flex-start;margin-bottom:20px}
   .title-actions{padding-top:0}
+  .facts dl{flex-wrap:wrap;width:auto}
   .facts dl>div{min-width:0;flex:1 1 45%}
+  .facts dd{white-space:normal}
   .kpis,.projects{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
   .stepper{grid-template-columns:repeat(2,1fr)}

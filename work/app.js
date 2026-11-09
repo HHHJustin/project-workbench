@@ -265,11 +265,11 @@ function renderOverview() {
   const projects = state.projects;
   const openAll = projects.reduce((n, p) => n + p.confirms.filter(c => c.status === 'open').length, 0);
   const tasksAll = projects.flatMap(visibleTasks), undone = tasksAll.filter(t => t.status !== 'done').length;
-  const nextMs = projects.flatMap(p => p.milestones.filter(m => !m.done && m.date).map(m => ({ ...m, project: p.name }))).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const dueToday = projects.flatMap(p => visibleTasks(p).filter(t => t.status !== 'done' && t.due === today()).map(t => p.name + ' · ' + t.name));
   $('#kpis').innerHTML = kpi('folder', 'blue', '追蹤中的專案', projects.length, projects.filter(p => p.stages.every(s => s.status === 'done')).length + ' 個已全部完成')
     + (can('confirms') ? kpi('inbox', 'amber', '待客戶確認', openAll, '件等待回覆') : '')
     + kpi('list', 'purple', '未完成任務', undone, (() => { const r = tasksAll.filter(t => lightOf(t.due, t.status === 'done') === 'red').length; return r ? `${r} 件已過期或今天到期` : `共 ${tasksAll.length} 件你看得到的`; })())
-    + kpi('flag', 'green', '下個里程碑', nextMs ? fmtDate(nextMs.date) : '—', nextMs ? esc(nextMs.project + ' · ' + nextMs.name) : '沒有未完成的里程碑');
+    + kpi('clock', dueToday.length ? 'red' : 'green', '今天到期', dueToday.length, dueToday.length ? esc(dueToday[0]) + (dueToday.length > 1 ? ` 等 ${dueToday.length} 件` : '') : '今天沒有到期的任務');
 
   $('#projects-list').innerHTML = projects.map(p => {
     const tasks = visibleTasks(p), done = tasks.filter(t => t.status === 'done').length;
