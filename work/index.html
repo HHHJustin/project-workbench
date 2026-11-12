@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>專案現場｜工作版原型</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../shared/visual.css">
 </head>
 <body>
 <div class="app">
@@ -15,6 +16,7 @@
       <button data-view="overview" class="nav active"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> 專案總覽</button>
       <div id="project-nav" class="project-nav"></div>
       <button type="button" class="nav soon" disabled title="規劃中：來源可能是第二大腦，放私人或工作、要不要分開都還沒決定"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h6v18H6a2 2 0 0 1-2-2z"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg> 知識庫<small>規劃中</small></button>
+      <button type="button" class="nav" id="guide-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg> 好夥伴怎麼用</button>
     </nav>
     <div class="sidebar-note">
       <label>目前身分<select id="role" aria-label="切換身分">
@@ -28,7 +30,7 @@
   </aside>
 
   <main>
-    <header><span>工作版 <b>/</b> <span id="breadcrumb">專案總覽</span></span><span id="store-status" class="local">● 資料只在此瀏覽器</span></header>
+    <header><span>工作版 <b>/</b> <span id="breadcrumb">專案總覽</span></span><span class="header-right"><button type="button" id="inbox-btn" class="inbox-btn" hidden></button><span id="store-status" class="local">● 資料只在此瀏覽器</span></span></header>
     <div class="content">
 
       <section id="overview-view" class="view">
@@ -100,6 +102,37 @@
 
 <div id="meeting-view" class="meeting" hidden></div>
 
+<dialog id="inbox-dialog" class="inbox-dialog"><div class="inbox-box"><div class="dialog-head"><div><h2>好夥伴的更新</h2><p class="hint">接受後才會寫進專案；略過的不會再出現。</p></div><button type="button" class="icon close" aria-label="關閉">✕</button></div><div id="inbox-list"></div></div></dialog>
+<dialog id="guide-dialog" class="inbox-dialog"><div class="inbox-box guide">
+  <div class="dialog-head"><div><h2>好夥伴怎麼用</h2><p class="hint">在 Claude Code 裡直接講表格左邊那句話。你只需要在這裡看進度、改狀態、做決定。</p></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <table class="guide-table">
+    <thead><tr><th>你說</th><th>會得到</th></tr></thead>
+    <tbody>
+      <tr><td>會議結束了</td><td>會議紀錄、待討論事項、信箱草稿匣裡的確認信、這裡的待辦與待確認、到期提醒</td></tr>
+      <tr><td>要開某某會議</td><td>會前一頁：上次決議的現況、對方還欠的、這次要確認的問題</td></tr>
+      <tr><td>某件事之前怎麼講的</td><td>從工作台、會議紀錄、錄音逐字稿、往來信件找出來，照時間排好並附來源</td></tr>
+      <tr><td>今天要追誰</td><td>誰欠你什麼、逾期幾天，附催辦訊息草稿</td></tr>
+      <tr><td>幫我看誰回信了</td><td>查信箱；對方回了就送更新過來，接受後該筆變成已回覆</td></tr>
+      <tr><td>某專案的週報</td><td>同一週的進度寫成三份：給客戶、給主管、給供應商</td></tr>
+      <tr><td>更新某專案進度頁</td><td>給客戶看的進度頁預覽；你同意才發布，連結會出現在專案頁的「對外連結」</td></tr>
+      <tr><td>客戶想加某功能</td><td>對照 SOW 判斷範圍內外，附影響評估、詢價信與給客戶的說明草稿</td></tr>
+      <tr><td>開一個新案子</td><td>建好專案資料夾，這裡出現新專案等你接受</td></tr>
+      <tr><td>幫我看這封信能不能寄</td><td>檢查必寫項目、回覆期限、與先前說法有沒有出入</td></tr>
+    </tbody>
+  </table>
+  <h3>在這個頁面上會看到什麼</h3>
+  <ul class="guide-list">
+    <li><b>右上角「好夥伴 N 筆更新」</b>：有建議時才出現。點開後按接受才寫進專案，略過就不再出現。</li>
+    <li><b>「依據 N」小標籤</b>：出現在待客戶確認、決策、變更需求底下。點開看是哪封信、哪份文件、確認到什麼程度。</li>
+    <li><b>專案頁的「對外連結」</b>：給客戶看的進度頁網址，發布後才出現。</li>
+  </ul>
+  <h3>不會自動發生的事</h3>
+  <ul class="guide-list">
+    <li>信件只放草稿匣，由你按寄出。</li>
+    <li>客戶進度頁每次發布前都會先問你。</li>
+    <li>公司的 Google Drive 不會被讀取或修改；需要的檔案請先下載到本機專案資料夾。</li>
+  </ul>
+</div></dialog>
 <dialog id="project-dialog"><form id="project-form">
   <div class="dialog-head"><div><p class="eyebrow">專案骨幹</p><h2 id="project-dialog-title">新增專案</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
   <label>專案名稱<input id="f-name" required maxlength="80" placeholder="例如：某零售業 會員系統改版"></label>

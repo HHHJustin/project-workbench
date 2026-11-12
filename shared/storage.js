@@ -74,6 +74,13 @@ const VaultStore = (() => {
     } catch (e) { console.error(e); }
   }
 
+  // 讀同一個資料夾裡的其他 JSON（例如好夥伴寫的 inbox.json）；還沒連結或檔案不存在就回傳 null
+  async function readJson(filename) {
+    if (status.state !== 'ready') return null;
+    try { const f = await (await dir.getFileHandle(filename)).getFile(); const text = await f.text(); return text.trim() ? JSON.parse(text) : null; }
+    catch (e) { if (e.name !== 'NotFoundError') console.error(e); return null; }
+  }
+
   // 備援：匯出／匯入 JSON 檔
   function exportJson() {
     const blob = new Blob([JSON.stringify(cfg.get(), null, 2)], { type: 'application/json' });
@@ -125,5 +132,5 @@ const VaultStore = (() => {
     boot(false);
   }
 
-  return { attach, save, supported, get status() { return status; } };
+  return { attach, save, readJson, supported, get status() { return status; } };
 })();

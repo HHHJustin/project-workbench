@@ -1,0 +1,19 @@
+/* Shared visual language for both workspaces. */
+:root{--bg:#f5f7f7;--card:#fff;--line:#dce3e3;--line-soft:#edf1f0;--ink:#222d30;--ink-2:#526063;--ink-3:#718080;--radius-s:6px;--radius-m:8px;--radius-l:8px;--shadow-s:0 1px 2px rgba(20,40,40,.04);--shadow-m:0 8px 24px rgba(20,40,40,.08)}
+.sidebar{background:#243331;border-right:1px solid #344744}
+.brand-mark{border-radius:8px;background:var(--accent);box-shadow:none}
+.brand strong{letter-spacing:0}
+.workspace{border-radius:7px;background:rgba(255,255,255,.08)}
+.workspace a,.nav{border-radius:6px}
+.nav.active{background:rgba(255,255,255,.12)}
+header{background:rgba(255,255,255,.94)}
+.content{max-width:1500px}
+.eyebrow{letter-spacing:.04em}
+h1,h2,h3{letter-spacing:0}
+.panel,.kpi,.project,.cal,.day,dialog{border-radius:8px;box-shadow:var(--shadow-s)}
+.panel,.kpi,.project,.day{border-color:var(--line)}
+.primary{box-shadow:none}
+button,input,select,textarea{letter-spacing:0}
+button{transition:background-color .16s,color .16s,border-color .16s,box-shadow .16s}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media(max-width:650px){header{min-height:48px;height:auto;gap:8px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}.sidebar nav{overflow-x:auto}.content{min-width:0}.title-row h1{overflow-wrap:anywhere}}

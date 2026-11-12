@@ -199,10 +199,13 @@ function normalize(data) {
     delete s.seed;
   }
   for (const p of data.projects) for (const s of p.stages) { s.checklist ??= []; s.features ??= []; s.enteredOn ??= ''; s.doneOn ??= ''; s.gate ??= { docs: true, checklist: false, features: false }; s.docs.forEach(d => d.confirmedOn ??= ''); s.checklist.forEach(c => c.due ??= ''); }
+  data.inboxDone ??= {};
+  for (const p of data.projects) for (const k of ['confirms', 'decisions', 'changes']) (p[k] ??= []).forEach(x => { x.evidence ??= []; });
   return data;
 }
 let state;
 try { state = normalize(JSON.parse(localStorage.getItem(KEY))); } catch { state = initial(); }
+let inbox = [];
 let calPid = null, calMonth = today().slice(0, 7), calSide = '', calHideDone = false;
 let role = 'owner', currentId = null, currentTab = 'summary', selectedStage = null, editing = null, meeting = false, showDone = false, sprintFilter = '';
 
@@ -218,6 +221,9 @@ const visibleFor = r => item => r === 'owner' || r === 'member' || item.vis.incl
 const visible = item => visibleFor(role)(item);
 // 供應商只看自己人負責的任務或被標記給供應商的任務；客戶只看標記給客戶的
 const visibleTasks = p => { const mode = can('tasks'); return p.tasks.filter(t => mode === 'all' || t.vis.includes(mode) || personSide(p, t.assignee) === mode); };
+// 進度：已完成階段算滿；進行中階段用該階段任務完成比例，沒建任務先算一半
+const stageProgress = (p, s) => { if (s.status === 'done') return 1; if (s.status !== 'doing') return 0; const ts = visibleTasks(p).filter(t => t.stage === s.id); return ts.length ? ts.filter(t => t.status === 'done').length / ts.length : 0.5; };
+const progressOf = p => p.stages.length ? Math.round(p.stages.reduce((n, s) => n + stageProgress(p, s), 0) / p.stages.length * 100) : 0;
 const fmtDate = s => s ? s.slice(5).replace('-', '/') : '—';
 // 跟上次同步到 Notion 的值比，有不同就代表還沒推出去（欄位與同步腳本一致）
 const notionDirty = t => { if (!t.sync) return false; const s = t.notion?.synced; if (!s) return true; const p = project(); const owner = p?.people.find(u => u.id === t.assignee)?.name || ''; const v = { name: t.name || '', owner, done: t.status === 'done', due: t.due || '', dueStart: t.dueStart || '', dueNote: t.dueNote || '', basis: t.basis || '', note: t.note || '', confirmBy: t.confirmBy || '' }; return Object.keys(v).some(k => (v[k] ?? '') !== (s[k] ?? '')); };
@@ -274,7 +280,7 @@ function renderOverview() {
 
   $('#projects-list').innerHTML = projects.map(p => {
     const tasks = visibleTasks(p), done = tasks.filter(t => t.status === 'done').length;
-    const percent = tasks.length ? Math.round(done / tasks.length * 100) : 0;
+    const percent = progressOf(p);
     const open = p.confirms.filter(c => c.status === 'open').length;
     const next = p.milestones.find(m => !m.done);
     return `<article class="project" data-open="${p.id}">
@@ -291,7 +297,7 @@ function renderSummary(p) {
   const tasks = visibleTasks(p), tasksDone = tasks.filter(t => t.status === 'done').length;
   const feats = p.stages.flatMap(s => s.features), featsDone = feats.filter(f => f.status === 'done').length;
   const open = p.confirms.filter(c => c.status === 'open').length;
-  $('#p-kpis').innerHTML = kpi('layers', 'blue', '階段完成', `${doneCount(p)} / ${p.stages.length}`, '進行中：' + esc(activeNames(p)))
+  $('#p-kpis').innerHTML = kpi('layers', 'blue', '整體進度', `${progressOf(p)}%`, `完成 ${doneCount(p)} / ${p.stages.length} 階段，進行中：` + esc(activeNames(p)))
     + kpi('doc', 'green', '文件已確認', `${docsOk} / ${docs.length}`, '你看得到的文件')
     + kpi('list', 'purple', '任務完成', `${tasksDone} / ${tasks.length}`, (() => { const c = lightCounts(p); return c.red ? `${c.red} 項已過期或今天到期` : c.amber ? `${c.amber} 項本週內到期` : '沒有急件'; })())
     + (can('confirms') ? kpi('inbox', 'amber', '待客戶確認', open, '件等待回覆') : (() => { const m = p.milestones.find(m => !m.done); return kpi('flag', 'amber', '下個里程碑', m ? fmtDate(m.date) : '—', m ? esc(m.name) : '里程碑全部完成'); })());
@@ -389,13 +395,13 @@ function renderTracking(p) {
   $('#tasks').innerHTML = tasks.length ? `<table class="task-table"><thead><tr><th>任務</th><th>負責人</th><th>到期</th><th>階段</th><th>狀態</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${tasks.map(t => `<tr class="${t.status === 'done' ? 'is-done' : ''}"><td>${light(t.due, t.status === 'done')}${esc(t.name)}${notionDirty(t) && can('edit') ? ` <span class="chip pending-sync" title="${t.notion?.url ? '有改動，下次同步會更新 Notion' : '下次同步時會新增到 Notion'}">待同步</span>` : ''}${t.sprint && findSprint(p, t.sprint) ? ` <span class="chip sprint-chip">${esc(findSprint(p, t.sprint).sp.name)}</span>` : ''}${(t.links || []).length ? `<div class="chips">${linkChips(t.links)}</div>` : ''}${extra(t) ? `<small class="task-extra">${extra(t)}</small>` : ''}${t.vis.length && can('edit') ? `<small class="hint">可見：${t.vis.map(v => ROLE[v].label).join('、')}</small>` : ''}</td><td>${esc(personName(p, t.assignee))}</td><td class="due">${t.dueStart ? `<small>${esc(t.dueStart)} →</small><br>` : ''}${esc(t.due || '—')}</td><td>${esc(p.stages.find(s => s.id === t.stage)?.name || '—')}</td><td>${pill(t.status, TASK_STATUS[t.status], can('edit') ? `data-cycle-task="${t.id}"` : '')}</td>${can('edit') ? `<td class="actions">${iconBtn('edit', `data-edit-task="${t.id}"`, '修改')}${iconBtn('trash', `data-del="tasks:${t.id}"`, '刪除')}</td>` : ''}</tr>`).join('')}</tbody></table>` : empty('check', all.length ? '未完成的任務都清空了' : '沒有你看得到的任務', all.length ? `已完成 ${doneCount} 件，勾「顯示已完成」可以看。` : '目前沒有分配給這個身分的工作。');
 
   $('#confirms-panel').hidden = !can('confirms');
-  $('#confirms').innerHTML = p.confirms.map(c => `<div class="row"><div>${esc(c.text)}<small>提出於 ${esc(c.askedOn)}</small></div><div class="ops">${pill(c.status, c.status === 'open' ? '等待回覆' : '已回覆', (can('edit') || role === 'client') ? `data-cycle-confirm="${c.id}"` : '')}${can('edit') ? iconBtn('trash', `data-del="confirms:${c.id}"`, '刪除') : ''}</div></div>`).join('') || empty('check', '目前沒有等客戶回覆的事', '進度沒有卡在對方手上。');
+  $('#confirms').innerHTML = p.confirms.map(c => `<div class="row"><div>${light(c.due, c.status !== 'open')}${esc(c.text)}<small>提出於 ${esc(c.askedOn)}${c.due ? ' · 回覆期限 ' + esc(c.due) : ''}</small>${evChips(c.evidence)}</div><div class="ops">${pill(c.status, c.status === 'open' ? '等待回覆' : '已回覆', (can('edit') || role === 'client') ? `data-cycle-confirm="${c.id}"` : '')}${can('edit') ? iconBtn('trash', `data-del="confirms:${c.id}"`, '刪除') : ''}</div></div>`).join('') || empty('check', '目前沒有等客戶回覆的事', '進度沒有卡在對方手上。');
 
   $('#changes-panel').hidden = !can('changes');
-  $('#changes').innerHTML = p.changes.map(c => `<div class="row"><div>${esc(c.text)}<small>${esc(c.by)} · ${esc(c.date)} · 範圍外，另行報價</small></div><div class="ops">${pill(c.quote, QUOTE[c.quote], can('edit') ? `data-cycle-change="${c.id}"` : '')}${can('edit') ? iconBtn('trash', `data-del="changes:${c.id}"`, '刪除') : ''}</div></div>`).join('') || empty('leaf', '沒有變更需求', '範圍外的要求出現時再登記，記得另行報價。');
+  $('#changes').innerHTML = p.changes.map(c => `<div class="row"><div>${esc(c.text)}<small>${esc(c.by)} · ${esc(c.date)} · 範圍外，另行報價</small>${evChips(c.evidence)}</div><div class="ops">${pill(c.quote, QUOTE[c.quote], can('edit') ? `data-cycle-change="${c.id}"` : '')}${can('edit') ? iconBtn('trash', `data-del="changes:${c.id}"`, '刪除') : ''}</div></div>`).join('') || empty('leaf', '沒有變更需求', '範圍外的要求出現時再登記，記得另行報價。');
 
   $('#decisions-panel').hidden = !can('decisions');
-  $('#decisions').innerHTML = p.decisions.map(d => `<div class="row"><div>${esc(d.text)}<small>${esc(d.by)} · ${esc(d.date)}</small></div><div class="ops">${can('edit') ? iconBtn('trash', `data-del="decisions:${d.id}"`, '刪除') : ''}</div></div>`).join('') || empty('pen', '還沒有決策紀錄', '重要的口頭同意，當天就寫一筆。');
+  $('#decisions').innerHTML = p.decisions.map(d => `<div class="row"><div>${esc(d.text)}<small>${esc(d.by)} · ${esc(d.date)}</small>${evChips(d.evidence)}</div><div class="ops">${can('edit') ? iconBtn('trash', `data-del="decisions:${d.id}"`, '刪除') : ''}</div></div>`).join('') || empty('pen', '還沒有決策紀錄', '重要的口頭同意，當天就寫一筆。');
 
   $('#risks-panel').hidden = !can('risks');
   $('#risks').innerHTML = p.risks.map(r => `<div class="row"><div>${esc(r.text)}<small>${esc(r.by)} · ${esc(r.date)}</small></div><div class="ops">${pill(r.level, '影響 ' + LEVEL[r.level])}${can('edit') ? iconBtn('trash', `data-del="risks:${r.id}"`, '刪除') : ''}</div></div>`).join('') || empty('leaf', '目前沒有登記的風險', '有需要才新增，不是每週必填。');
@@ -406,7 +412,7 @@ function renderProject() {
   $('#p-client').textContent = p.client + ' · ' + (TEMPLATES[p.template]?.name || '自訂階段');
   $('#p-name').textContent = p.name;
   const fact = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
-  $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('進行中階段', esc(activeNames(p)))}${fact('你的身分', ROLE[role].label)}${fact('最後更新', fmtTime(p.updatedAt))}${p.notionSync && can('edit') ? fact('Notion 同步', `<span title="上次比對 ${esc(fmtTime(p.notionSync.lastChecked))}">${fmtTime(p.notionSync.lastSynced)}</span>${p.tasks.some(t => notionDirty(t)) ? ' <span class="chip pending-sync" title="工作台有改動還沒推到 Notion">待同步</span>' : ''}`) : ''}</dl>`;
+  $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('進行中階段', esc(activeNames(p)))}${fact('你的身分', ROLE[role].label)}${fact('最後更新', fmtTime(p.updatedAt))}${(p.links || []).length ? fact('對外連結', `<span class="chips fact-links">${linkChips(p.links)}</span>`) : ''}${p.notionSync && can('edit') ? fact('Notion 同步', `<span title="上次比對 ${esc(fmtTime(p.notionSync.lastChecked))}">${fmtTime(p.notionSync.lastSynced)}</span>${p.tasks.some(t => notionDirty(t)) ? ' <span class="chip pending-sync" title="工作台有改動還沒推到 Notion">待同步</span>' : ''}`) : ''}</dl>`;
   renderSummary(p); renderStages(p); renderTracking(p);
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
   document.querySelectorAll('.tab-panel').forEach(el => el.hidden = el.id !== 'tab-' + currentTab);
@@ -415,7 +421,7 @@ function renderProject() {
 function render() {
   // data-need 標記按鈕需要哪些身分才顯示；集中處理，不用每個按鈕各寫一次
   document.querySelectorAll('[data-need]').forEach(b => b.hidden = !b.dataset.need.split(' ').includes(role));
-  renderOverview();
+  renderOverview(); renderInbox();
   $('#overview-view').hidden = !!currentId;
   if (!currentId) renderCalendar();
   $('#project-view').hidden = !currentId;
@@ -671,6 +677,59 @@ document.addEventListener('change', e => {
 });
 
 // ---- 事件 ----
+// ── 好夥伴收件匣（2026-11-12）──
+// 好夥伴（Claude Code）不直接改 work.json，只把建議寫進同資料夾的 inbox.json；這裡讀出來，按「接受」才寫進專案。
+// 這樣外部程式永遠不會蓋掉頁面上手動改的東西。處理過的項目記在 state.inboxDone，inbox.json 本身由好夥伴維護、頁面不寫。
+const INBOX_KIND = { project: '新專案', link: '對外連結', task: '待辦', confirm: '待客戶確認', decision: '決策', change: '變更需求', evidence: '補依據' };
+const EV_STATE = { sent: '已寄出，未回覆', pm: '對方窗口已回覆', signed: '有權人已書面確認', lapsed: '逾期未回（依合約）' };
+// 依據：這件事當時留下的紀錄（哪份文件、哪封信、確認到什麼程度），爭議時從這裡調閱
+const evChips = list => (list || []).length ? `<details class="ev"><summary>依據 ${list.length}</summary><div class="chips">${list.map(ev => { const text = esc([ev.type, ev.title, EV_STATE[ev.state] || ev.state, ev.date].filter(Boolean).join('｜')); return ev.link ? `<a class="chip ev" href="${esc(normUrl(ev.link))}" target="_blank" rel="noopener">${text}</a>` : `<span class="chip ev">${text}</span>`; }).join('')}</div></details>` : '';
+const inboxPending = pid => inbox.map(b => ({ ...b, items: (b.items || []).filter(it => !(state.inboxDone ??= {})[it.id]) })).filter(b => b.items.length && (b.projectId === '__new__' || state.projects.some(p => p.id === b.projectId)) && (!pid || b.projectId === pid));
+function setInbox(data) { inbox = Array.isArray(data?.batches) ? data.batches : []; render(); }
+async function loadInbox() { const data = await VaultStore.readJson('inbox.json'); if (data) setInbox(data); }
+const inboxDetail = it => { const d = it.data || {}; return [d.assignee && '負責：' + d.assignee, d.due && '期限：' + d.due, d.by && '提出：' + d.by, d.basis && '依據：' + d.basis, d.note].filter(Boolean).map(esc).join(' · '); };
+function inboxHtml() {
+  return inboxPending(null).map(b => `<div class="inbox-batch"><div class="inbox-source"><div><strong>${esc(b.source)}</strong><small>${esc(state.projects.find(p => p.id === b.projectId)?.name || '新專案')} · ${fmtTime(b.createdAt)}</small></div><button type="button" class="outline" data-inbox="accept-batch:${esc(b.id)}">全部接受</button></div>${b.items.map(it => `<div class="row"><div><span class="pill ${it.kind === 'task' ? 'todo' : 'open'}">${INBOX_KIND[it.kind] || esc(it.kind)}</span> ${esc(it.summary)}<small>${inboxDetail(it)}</small>${evChips(it.data?.evidence)}</div><div class="ops"><button type="button" class="primary small" data-inbox="accept:${esc(it.id)}">接受</button><button type="button" class="outline" data-inbox="skip:${esc(it.id)}">略過</button></div></div>`).join('')}</div>`).join('');
+}
+// 平常不佔版面：有更新時頁首才出現一顆按鈕，點了開視窗處理；處理完自動關
+function renderInbox() {
+  const n = role === 'owner' ? inboxPending(null).reduce((s, b) => s + b.items.length, 0) : 0;
+  $('#inbox-btn').hidden = !n; $('#inbox-btn').textContent = `好夥伴 ${n} 筆更新`;
+  const dlg = $('#inbox-dialog'); if (!dlg.open) return;
+  if (!n) { dlg.close(); return; }
+  $('#inbox-list').innerHTML = inboxHtml();
+}
+// 負責人用名稱對人員清單；對不到就留空，由你在任務上補
+const resolvePerson = (p, name) => !name ? '' : (p.people.find(u => u.name === name) || p.people.find(u => name.includes(u.name) || u.name.includes(name)))?.id || '';
+function applyInboxItem(b, it) {
+  // 新案啟動包：收件匣帶來整個專案的骨幹，接受後用階段範本建立，跟手動「新增專案」同一套結構
+  if (it.kind === 'project') { const d = it.data || {}; const t = TEMPLATES[d.template] ? d.template : 'standard'; state.projects.push({ id: uid(), name: it.summary, client: d.client || '', owner: d.owner || '', start: d.start || '', due: d.due || '', goal: d.goal || '', scopeIn: d.scopeIn || [], scopeOut: d.scopeOut || [], template: t, stageIndex: 0, people: (d.people || []).map(u => ({ id: 'u-' + uid(), name: u.name, side: u.side || 'internal', role: u.role || '負責方' })), milestones: (d.milestones || []).map(m => ({ id: 'm-' + uid(), name: m.name, date: m.date || '', done: false })), stages: buildStages(t).map((s, i) => ({ ...s, sprints: [], status: i === 0 ? 'doing' : 'todo' })), tasks: [], confirms: [], changes: [], decisions: [], risks: [], updatedAt: stamp() }); return; }
+  const p = state.projects.find(p => p.id === b.projectId); if (!p) return; const d = it.data || {};
+  const ev = (d.evidence || []).map(e => ({ ...e }));
+  if (it.kind === 'task') p.tasks.push({ id: 't-' + uid(), name: it.summary, assignee: resolvePerson(p, d.assignee), due: d.due || '', dueStart: '', dueNote: d.dueNote || '', stage: p.stages[primaryIndex(p)]?.id || '', sprint: '', status: 'todo', vis: d.vis || [], links: d.links || [], sync: false, basis: d.basis || b.source, note: d.note || '', confirmBy: '' });
+  if (it.kind === 'confirm') p.confirms.push({ id: uid(), text: it.summary, askedOn: d.askedOn || today(), status: 'open', due: d.due || '', evidence: ev });
+  if (it.kind === 'decision') p.decisions.push({ id: uid(), text: it.summary, by: d.by || '', date: d.date || today(), evidence: ev });
+  if (it.kind === 'change') p.changes.push({ id: uid(), text: it.summary, by: d.by || '', date: d.date || today(), quote: 'pending', evidence: ev });
+  // 補依據：對方回信後，把回覆掛到原本那筆上；setStatus 可順便把待確認改成已回覆
+  if (it.kind === 'evidence') { const target = (p[d.list] || []).find(x => x.id === d.targetId); if (target) { (target.evidence ??= []).push(...ev); if (d.setStatus) target.status = d.setStatus; } }
+  // 對外連結：給客戶或夥伴看的進度頁等，同名的換成新網址
+  if (it.kind === 'link') { p.links = (p.links || []).filter(l => l.label !== d.label); p.links.push({ label: d.label || it.summary, url: d.url }); }
+  p.updatedAt = stamp();
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('#guide-btn')) { $('#guide-dialog').showModal(); return; }
+  if (e.target.closest('#inbox-btn')) { $('#inbox-dialog').showModal(); renderInbox(); return; }
+  const act = e.target.closest('[data-inbox]')?.dataset.inbox; if (!act) return;
+  const [verb, id] = act.split(':'); const done = (state.inboxDone ??= {});
+  for (const b of inboxPending(null)) for (const it of b.items) {
+    if (verb === 'accept-batch' ? b.id !== id : it.id !== id) continue;
+    if (verb !== 'skip') applyInboxItem(b, it);
+    done[it.id] = verb === 'skip' ? 'skipped' : 'accepted';
+  }
+  save(); render();
+});
+window.addEventListener('focus', loadInbox);
+
 const cycle = (order, cur) => order[(order.indexOf(cur) + 1) % order.length];
 document.addEventListener('click', e => {
   const b = e.target.closest('button, [data-open]'); if (!b) return; const p = project(); const d = b.dataset;
@@ -743,4 +802,4 @@ $('#sprint-filter').onchange = e => { sprintFilter = e.target.value; render(); }
 { const [id, tab] = location.hash.slice(1).split('/'); if (state.projects.some(p => p.id === id)) { currentId = id; if (['summary', 'stages', 'tracking'].includes(tab)) currentTab = tab; if (tab === 'meeting') meeting = true; } }
 render();
 // 資料正本在 iCloud 資料夾的 work.json；連結後覆寫目前 state 並重畫
-VaultStore.attach({ el: $('#store-status'), filename: 'work.json', get: () => state, set: data => { state = normalize(data); if (currentId && !state.projects.some(p => p.id === currentId)) currentId = null; selectedStage = null; render(); } });
+VaultStore.attach({ el: $('#store-status'), filename: 'work.json', get: () => state, set: data => { state = normalize(data); if (currentId && !state.projects.some(p => p.id === currentId)) currentId = null; selectedStage = null; render(); loadInbox(); } });
