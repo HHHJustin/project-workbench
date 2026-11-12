@@ -664,3 +664,21 @@ details.spec-done table{margin-top:8px}
 #specs small.hint{display:block;margin:0}
 .ops-cell{white-space:nowrap;text-align:right}
 input[readonly]{background:var(--gray-soft);color:var(--ink-3)}
+/* 規格時程表：左邊規格與負責人，右邊橫條；灰線是每週一，藍線是今天 */
+.tl{margin:14px 0 22px;border:1px solid var(--line-soft);border-radius:var(--radius-m);padding:10px 14px 6px;overflow-x:auto}
+.tl-row{display:grid;grid-template-columns:minmax(180px,260px) minmax(420px,1fr);gap:14px;align-items:center;min-height:44px;border-top:1px solid var(--line-soft)}
+.tl-row.tl-axis{border-top:0;min-height:26px}
+.tl-name{font-size:13.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-name small{display:block;color:var(--ink-3);font-size:12px}
+.tl-track{position:relative;height:100%;min-height:44px}
+.tl-axis .tl-track{min-height:26px}
+.tl-label{position:absolute;top:4px;transform:translateX(-50%);font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl-label.tl-now{color:var(--accent);font-weight:600;top:-9px}
+.tl-tick,.tl-today{position:absolute;top:0;bottom:0;width:1px;background:var(--line-soft)}
+.tl-today{background:var(--accent);width:2px;opacity:.55}
+.tl-bar{position:absolute;top:13px;height:18px;border-radius:9px;background:var(--gray-soft);border:1px solid var(--line)}
+.tl-bar.doing{background:var(--accent-soft);border-color:var(--accent)}
+.tl-bar.open{background:var(--amber-soft);border-color:var(--amber)}
+.tl-bar.point{border-radius:50%;width:18px!important;margin-left:-9px}
+.tl-bar.late{border-color:var(--red);box-shadow:0 0 0 2px var(--red-soft)}
+.tl-due{position:absolute;top:12px;margin-left:8px;font-size:12px;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}

@@ -695,13 +695,29 @@ function specRows(p) {
   rows.forEach(r => { r.flags = flagsOf(r); });
   return rows;
 }
+// 時程表：只畫未完成、有期限的規格。有開始日畫成橫條，沒有就只標期限那一天；紅框代表已過期限。
+// 範圍從三週前到最晚的期限，太久以前的期限會貼在最左邊，避免整張圖被拉得很長。
+function specTimeline(open) {
+  const items = open.filter(s => s.due); if (!items.length) return '';
+  const day = 86400000, t = iso => new Date(iso + 'T00:00:00').getTime(), now = t(today());
+  const min = Math.max(Math.min(now, ...items.map(s => t(s.start || s.due))), now - 21 * day) - 2 * day;
+  const max = Math.max(now, ...items.map(s => t(s.due))) + 5 * day, span = max - min;
+  const pos = x => Math.min(100, Math.max(0, (x - min) / span * 100));
+  const ticks = []; for (let d = new Date(min); d.getTime() <= max; d.setDate(d.getDate() + 1)) if (d.getDay() === 1) ticks.push(d.getTime());
+  const grid = ticks.map(x => `<i class="tl-tick" style="left:${pos(x)}%"></i>`).join('') + `<i class="tl-today" style="left:${pos(now)}%"></i>`;
+  return `<div class="tl"><div class="tl-row tl-axis"><div></div><div class="tl-track">${ticks.map(x => `<span class="tl-label" style="left:${pos(x)}%">${fmtDate(localISO(new Date(x)))}</span>`).join('')}<span class="tl-label tl-now" style="left:${pos(now)}%">今天</span></div></div>${items.map(s => {
+    const end = pos(t(s.due) + day), start = s.start ? pos(t(s.start)) : Math.max(0, end - 1.2), late = s.due < today();
+    return `<div class="tl-row"><div class="tl-name"><strong>${esc(s.id)}</strong> ${esc(s.title)}<small>${esc(s.owner || '沒有負責人')}</small></div><div class="tl-track">${grid}<span class="tl-bar ${SPEC_PILL[s.stage] || 'na'} ${late ? 'late' : ''} ${s.start ? '' : 'point'}" style="left:${start}%;width:${Math.max(1.2, end - start)}%" title="${esc(s.stage)} · 期限 ${esc(s.due)}"></span><span class="tl-due" style="left:${end}%">${fmtDate(s.due)} ${esc(s.stage)}</span></div></div>`;
+  }).join('')}</div>`;
+}
 function renderSpecs(p) {
   const internal = role === 'owner' || role === 'member', rows = internal ? specRows(p) : [];
-  $('#tab-btn-specs').hidden = !(internal && (rows.length || role === 'owner'));
+  $('#tab-btn-specs').hidden = !(internal && rows.length);
   if ($('#tab-btn-specs').hidden) { if (currentTab === 'specs') currentTab = 'summary'; return; }
   const open = rows.filter(s => s.stage !== '完成').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), done = rows.filter(s => s.stage === '完成');
   $('#specs-note').textContent = rows.length ? `未完成 ${open.length} 份、已完成 ${done.length} 份。${specData?.projects?.[p.id]?.length ? `階段與任務數來自規格庫，${fmtTime(specData.generatedAt)} 掃描。` : '規格庫還沒有 spec，目前都是規劃中的。'}` : '';
-  const ops = s => can('edit') ? `<td class="ops-cell">${iconBtn('pen', `data-spec-edit="${esc(s.planId)}" data-spec-no="${esc(s.id)}" data-spec-title="${esc(s.title)}" data-spec-owner="${esc(s.owner)}" data-spec-due="${esc(s.due)}" data-spec-fixed="${s.planned ? '' : '1'}"`, '設定期限與負責人')}${s.planned ? iconBtn('trash', `data-del="specPlans:${s.planId}"`, '刪除') : ''}</td>` : '';
+  $('#specs-timeline').innerHTML = specTimeline(open);
+  const ops = s => can('edit') ? `<td class="ops-cell">${iconBtn('clock', `data-spec-edit="${esc(s.planId)}" data-spec-no="${esc(s.id)}" data-spec-title="${esc(s.title)}" data-spec-owner="${esc(s.owner)}" data-spec-due="${esc(s.due)}" data-spec-fixed="${s.planned ? '' : '1'}"`, '設定期限')}${s.planned ? iconBtn('trash', `data-del="specPlans:${s.planId}"`, '刪除') : ''}</td>` : '';
   const row = s => `<tr class="${s.stage === '完成' ? 'is-done' : ''}"><td>${light(s.due, s.stage === '完成')}<strong>${esc(s.id)}</strong> ${esc(s.title)}${s.flags.length ? `<div class="chips">${s.flags.map(f => `<span class="chip pending-sync">${esc(f)}</span>`).join('')}</div>` : ''}</td><td>${esc(s.owner || '—')}${s.reviewer ? `<small class="hint">審：${esc(s.reviewer)}</small>` : ''}</td><td>${esc(s.due || '—')}</td><td>${pill(SPEC_PILL[s.stage] || 'na', s.stage)}</td><td>${s.total ? `${s.done} / ${s.total}${s.review ? `<small class="hint">待驗證 ${s.review}</small>` : ''}` : '—'}</td><td>${esc(s.updated || '—')}</td>${ops(s)}</tr>`;
   $('#specs').innerHTML = rows.length ? `<table class="task-table"><thead><tr><th>規格</th><th>負責人</th><th>期限</th><th>階段</th><th>任務</th><th>最後更新</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${open.map(row).join('')}</tbody></table>${done.length ? `<details class="contacts spec-done"><summary>已完成 ${done.length}</summary><table class="task-table"><tbody>${done.map(row).join('')}</tbody></table></details>` : ''}` : empty('doc', '還沒有規格', '先排出要寫哪些規格、誰負責、什麼時候完成。');
 }
@@ -709,7 +725,7 @@ let editingSpec = null;
 function openSpecDialog(d) {
   const p = project(); editingSpec = d?.specEdit ? (p.specPlans || []).find(x => x.id === d.specEdit) : null;
   const fixed = !!d?.specFixed;
-  $('#spec-dialog-title').textContent = d ? '設定期限與負責人' : '規劃一份規格';
+  $('#spec-dialog-title').textContent = `設定期限：${d?.specNo || ''} ${d?.specTitle || ''}`;
   $('#sp-no').value = d?.specNo || ''; $('#sp-no').readOnly = fixed; $('#sp-title').value = d?.specTitle || ''; $('#sp-title').readOnly = fixed;
   $('#sp-owner').value = d?.specOwner || ''; $('#sp-due').value = d?.specDue || '';
   $('#sp-people').innerHTML = [...(p.contacts || []).map(c => c.name), ...p.people.map(u => u.name)].map(n => `<option value="${esc(n)}">`).join('');
