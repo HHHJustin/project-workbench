@@ -76,7 +76,8 @@ const VaultStore = (() => {
 
   // 讀同一個資料夾裡的其他 JSON（例如好夥伴寫的 inbox.json）；還沒連結或檔案不存在就回傳 null
   async function readJson(filename) {
-    if (status.state !== 'ready') return null;
+    // 只看有沒有資料夾，不看狀態文字：剛連上時 app 會立刻來讀，那時狀態還沒切到 ready
+    if (!dir) return null;
     try { const f = await (await dir.getFileHandle(filename)).getFile(); const text = await f.text(); return text.trim() ? JSON.parse(text) : null; }
     catch (e) { if (e.name !== 'NotFoundError') console.error(e); return null; }
   }
