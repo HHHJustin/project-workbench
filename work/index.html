@@ -66,7 +66,10 @@
           <button class="tab active" data-tab="summary">概況</button>
           <button class="tab" data-tab="stages">階段與文件</button>
           <button class="tab" data-tab="tracking">追蹤</button>
+          <button class="tab" data-tab="specs" id="tab-btn-specs" hidden>規格</button>
         </div>
+
+        <div id="tab-specs" class="tab-panel" hidden><div class="panel"><div class="section-title"><div><h2>規格進度</h2><p id="specs-note"></p></div></div><div id="specs"></div></div></div>
 
         <div id="tab-summary" class="tab-panel">
           <div id="p-kpis" class="kpis"></div>
@@ -76,7 +79,7 @@
             </div>
             <div class="panel"><div class="section-title"><h2>里程碑</h2><button class="text-button" id="add-milestone" data-need="owner">＋ 里程碑</button></div><div id="milestones"></div></div>
           </div>
-          <div class="panel" id="people-panel"><div class="section-title"><h2>協作對象</h2><button class="text-button" id="add-person" data-need="owner">＋ 協作對象</button></div><div id="people"></div></div>
+          <div class="panel" id="people-panel"><div class="section-title"><h2>協作對象</h2><span><button class="text-button" id="add-contact" data-need="owner">＋ 聯絡人</button><button class="text-button" id="add-person" data-need="owner">＋ 協作對象</button></span></div><div id="people"></div></div>
         </div>
 
         <div id="tab-stages" class="tab-panel" hidden>
@@ -115,6 +118,8 @@
       <tr><td>幫我看誰回信了</td><td>查信箱；對方回了就送更新過來，接受後該筆變成已回覆</td></tr>
       <tr><td>某專案的週報</td><td>同一週的進度寫成三份：給客戶、給主管、給供應商</td></tr>
       <tr><td>更新某專案進度頁</td><td>給客戶看的進度頁預覽；你同意才發布，連結會出現在專案頁的「對外連結」</td></tr>
+      <tr><td>更新規格進度</td><td>掃規格庫，專案頁的「規格」分頁會顯示每份 spec 的負責人、期限、階段、任務完成數</td></tr>
+      <tr><td>提醒大家 spec 期限</td><td>依負責人列出未完成的 spec 與期限，附提醒訊息草稿</td></tr>
       <tr><td>客戶想加某功能</td><td>對照 SOW 判斷範圍內外，附影響評估、詢價信與給客戶的說明草稿</td></tr>
       <tr><td>開一個新案子</td><td>建好專案資料夾，這裡出現新專案等你接受</td></tr>
       <tr><td>幫我看這封信能不能寄</td><td>檢查必寫項目、回覆期限、與先前說法有沒有出入</td></tr>
@@ -124,6 +129,8 @@
   <ul class="guide-list">
     <li><b>右上角「好夥伴 N 筆更新」</b>：有建議時才出現。點開後按接受才寫進專案，略過就不再出現。</li>
     <li><b>「依據 N」小標籤</b>：出現在待客戶確認、決策、變更需求底下。點開看是哪封信、哪份文件、確認到什麼程度。</li>
+    <li><b>概況頁「協作對象」底下的「聯絡人 N」</b>：每一方有哪些人、誰負責設計或開發、信箱、誰是窗口誰有決定權。好夥伴寫信時照這裡決定寄給誰。</li>
+    <li><b>專案頁的「規格」分頁</b>：有 spec 的專案才出現。內容來自規格庫，只能看不能改；要改負責人或期限，改 spec 檔頭。</li>
     <li><b>專案頁的「對外連結」</b>：給客戶看的進度頁網址，發布後才出現。</li>
   </ul>
   <h3>不會自動發生的事</h3>
@@ -236,6 +243,18 @@
   <div class="dialog-actions"><button type="button" class="text-button danger" id="sprint-delete">刪除這個 Sprint</button><span class="spacer"></span><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
 </form></dialog>
 
+<dialog id="contact-dialog"><form id="contact-form">
+  <div class="dialog-head"><div><p class="eyebrow">誰負責什麼、該找誰確認</p><h2 id="contact-dialog-title">新增聯絡人</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <label>姓名<input id="c-name" required maxlength="40"></label>
+  <div class="form-grid">
+    <label>所屬<select id="c-party"></select></label>
+    <label>決定權<select id="c-power"><option value="window">窗口</option><option value="decide">有決定權</option><option value="member">參與</option></select></label>
+  </div>
+  <label>負責什麼<input id="c-duty" maxlength="60" placeholder="例如：專案窗口、UI 設計、後端開發"></label>
+  <label>信箱<input id="c-email" type="email" maxlength="120" placeholder="name@example.com"></label>
+  <label>備註<input id="c-note" maxlength="120" placeholder="例如：範圍與費用要經過他同意"></label>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
+</form></dialog>
 <dialog id="small-dialog"><form id="small-form">
   <div class="dialog-head"><div><h2 id="small-dialog-title"></h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
   <label>名稱<input id="s-name" required maxlength="60"></label>

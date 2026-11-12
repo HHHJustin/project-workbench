@@ -200,6 +200,7 @@ function normalize(data) {
   }
   for (const p of data.projects) for (const s of p.stages) { s.checklist ??= []; s.features ??= []; s.enteredOn ??= ''; s.doneOn ??= ''; s.gate ??= { docs: true, checklist: false, features: false }; s.docs.forEach(d => d.confirmedOn ??= ''); s.checklist.forEach(c => c.due ??= ''); }
   data.inboxDone ??= {};
+  for (const p of data.projects) p.contacts ??= [];
   for (const p of data.projects) for (const k of ['confirms', 'decisions', 'changes']) (p[k] ??= []).forEach(x => { x.evidence ??= []; });
   return data;
 }
@@ -307,7 +308,7 @@ function renderSummary(p) {
   $('#scope-out').innerHTML = p.scopeOut.map(s => `<li>${esc(s)}</li>`).join('') || '<li class="muted">未填</li>';
   $('#milestones').innerHTML = p.milestones.map(m => `<div class="milestone ${m.done ? 'done' : ''}"><span class="dot"></span><div><strong>${esc(m.name)}</strong><small>${light(m.date, m.done)}${esc(m.date)}${can('edit') ? ` · <button class="text-button ms-toggle" data-toggle-ms="${m.id}">${m.done ? '取消完成' : '標記完成'}</button>` : ''}</small></div></div>`).join('') || empty('flag', '還沒有里程碑', '先放上合約裡約定的幾個交付點。');
   $('#people-panel').hidden = !can('people');
-  $('#people').innerHTML = p.people.map(u => `<div class="person"><span class="avatar ${u.side}">${esc(u.name.slice(0, 1))}</span><span><strong>${esc(u.name)}</strong><small>${esc(u.role)}</small></span><span class="side ${u.side}">${SIDE[u.side]}</span></div>`).join('');
+  $('#people').innerHTML = p.people.map(u => `<div class="person"><span class="avatar ${u.side}">${esc(u.name.slice(0, 1))}</span><span><strong>${esc(u.name)}</strong><small>${esc(u.role)}</small></span><span class="side ${u.side}">${SIDE[u.side]}</span></div>${contactsHtml(p, (p.contacts || []).filter(c => c.party === u.id), '聯絡人')}`).join('') + contactsHtml(p, (p.contacts || []).filter(c => !p.people.some(u => u.id === c.party)), '未歸屬的聯絡人');
 }
 
 // 階段頁：上方是步驟軸，下方是選定階段的出口條件、文件、要做的事、功能清單。狀態一點就循環切換，省掉表單。
@@ -413,7 +414,7 @@ function renderProject() {
   $('#p-name').textContent = p.name;
   const fact = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
   $('#p-facts').innerHTML = `<dl>${fact('客戶', esc(p.client || '—'))}${fact('期間', `${esc(p.start) || '?'} → ${esc(p.due) || '?'}`)}${fact('負責人', esc(p.owner || '—'))}${fact('進行中階段', esc(activeNames(p)))}${fact('你的身分', ROLE[role].label)}${fact('最後更新', fmtTime(p.updatedAt))}${(p.links || []).length ? fact('對外連結', `<span class="chips fact-links">${linkChips(p.links)}</span>`) : ''}${p.notionSync && can('edit') ? fact('Notion 同步', `<span title="上次比對 ${esc(fmtTime(p.notionSync.lastChecked))}">${fmtTime(p.notionSync.lastSynced)}</span>${p.tasks.some(t => notionDirty(t)) ? ' <span class="chip pending-sync" title="工作台有改動還沒推到 Notion">待同步</span>' : ''}`) : ''}</dl>`;
-  renderSummary(p); renderStages(p); renderTracking(p);
+  renderSummary(p); renderStages(p); renderTracking(p); renderSpecs(p);
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
   document.querySelectorAll('.tab-panel').forEach(el => el.hidden = el.id !== 'tab-' + currentTab);
 }
@@ -677,10 +678,55 @@ document.addEventListener('change', e => {
 });
 
 // ---- 事件 ----
+// ── 規格進度（2026-11-12）──
+// 開發的正本在各專案的 Spec Kit 規格庫。好夥伴掃規格庫後寫成 data/specs.json，這裡只顯示、不能改；
+// 要改負責人或期限，改 spec.md 檔頭的 Owner／Due。沒有 spec 的專案不會出現這個分頁。
+let specData = null;
+const SPEC_PILL = { '完成': 'done', '開發中': 'doing', '待驗證': 'open', '待開工': 'todo', '技術規劃': 'na', '寫規格': 'na' };
+function setSpecs(data) { specData = data; render(); }
+async function loadSpecs() { const data = await VaultStore.readJson('specs.json'); if (data) setSpecs(data); }
+function renderSpecs(p) {
+  const list = (role === 'owner' || role === 'member') ? (specData?.projects?.[p.id] || []) : [];
+  $('#tab-btn-specs').hidden = !list.length;
+  if (!list.length) { if (currentTab === 'specs') currentTab = 'summary'; return; }
+  const open = list.filter(s => s.stage !== '完成').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), done = list.filter(s => s.stage === '完成');
+  $('#specs-note').textContent = `未完成 ${open.length} 份、已完成 ${done.length} 份。資料來自規格庫，${fmtTime(specData.generatedAt)} 掃描；負責人與期限以 spec 檔頭為準。`;
+  const row = s => `<tr class="${s.stage === '完成' ? 'is-done' : ''}"><td>${light(s.due, s.stage === '完成')}<strong>${esc(s.id)}</strong> ${esc(s.title)}${s.flags.length ? `<div class="chips">${s.flags.map(f => `<span class="chip pending-sync">${esc(f)}</span>`).join('')}</div>` : ''}</td><td>${esc(s.owner || '—')}${s.reviewer ? `<small class="hint">審：${esc(s.reviewer)}</small>` : ''}</td><td>${esc(s.due || '—')}</td><td>${pill(SPEC_PILL[s.stage] || 'na', s.stage)}</td><td>${s.total ? `${s.done} / ${s.total}${s.review ? `<small class="hint">待驗證 ${s.review}</small>` : ''}` : '—'}</td><td>${esc(s.updated || '')}</td></tr>`;
+  $('#specs').innerHTML = `<table class="task-table"><thead><tr><th>規格</th><th>負責人</th><th>期限</th><th>階段</th><th>任務</th><th>最後更新</th></tr></thead><tbody>${open.map(row).join('')}</tbody></table>${done.length ? `<details class="contacts spec-done"><summary>已完成 ${done.length}</summary><table class="task-table"><tbody>${done.map(row).join('')}</tbody></table></details>` : ''}`;
+}
+window.addEventListener('focus', loadSpecs);
+
+// ── 聯絡人（2026-11-12）──
+// 協作對象是「哪一方」（公司），聯絡人是那一方裡的「誰」：負責設計還是開發、信箱、是窗口還是有決定權的人。
+// 好夥伴寫確認信時靠這裡判斷寄給誰；範圍、費用、上線日這類事要找「有決定權」的人確認。
+const POWER = { decide: '有決定權', window: '窗口', member: '參與' };
+let editingContact = null;
+function contactsHtml(p, list, title) {
+  return list.length ? `<details class="contacts"><summary>${title} ${list.length}</summary>${list.map(c => `<div class="contact"><div><strong>${esc(c.name)}</strong> <span class="pill ${c.power === 'decide' ? 'open' : 'na'}">${POWER[c.power] || '窗口'}</span><small>${esc([c.duty, c.email, c.note].filter(Boolean).join(' · '))}</small></div>${can('edit') ? `<div class="ops">${iconBtn('pen', `data-edit-contact="${c.id}"`, '編輯')}${iconBtn('trash', `data-del="contacts:${c.id}"`, '刪除')}</div>` : ''}</div>`).join('')}</details>` : '';
+}
+function openContactDialog(c) {
+  const p = project(); editingContact = c || null;
+  $('#contact-dialog-title').textContent = c ? '編輯聯絡人' : '新增聯絡人';
+  $('#c-party').innerHTML = p.people.map(u => `<option value="${u.id}">${esc(u.name)}（${SIDE[u.side]}）</option>`).join('');
+  $('#c-name').value = c?.name || ''; if (c?.party) $('#c-party').value = c.party;
+  $('#c-power').value = c?.power || 'window'; $('#c-duty').value = c?.duty || ''; $('#c-email').value = c?.email || ''; $('#c-note').value = c?.note || '';
+  $('#contact-dialog').showModal();
+}
+$('#contact-form').onsubmit = e => {
+  e.preventDefault(); const p = project(); const name = $('#c-name').value.trim(); if (!name) return;
+  const data = { name, party: $('#c-party').value, power: $('#c-power').value, duty: $('#c-duty').value.trim(), email: $('#c-email').value.trim(), note: $('#c-note').value.trim() };
+  if (editingContact) Object.assign(editingContact, data); else (p.contacts ??= []).push({ id: 'c-' + uid(), ...data });
+  save(); $('#contact-dialog').close(); render();
+};
+document.addEventListener('click', e => {
+  if (e.target.closest('#add-contact')) { if (!project().people.length) { alert('請先新增協作對象（哪一方），再新增聯絡人。'); return; } openContactDialog(); return; }
+  const id = e.target.closest('[data-edit-contact]')?.dataset.editContact; if (id) openContactDialog((project().contacts || []).find(c => c.id === id));
+});
+
 // ── 好夥伴收件匣（2026-11-12）──
 // 好夥伴（Claude Code）不直接改 work.json，只把建議寫進同資料夾的 inbox.json；這裡讀出來，按「接受」才寫進專案。
 // 這樣外部程式永遠不會蓋掉頁面上手動改的東西。處理過的項目記在 state.inboxDone，inbox.json 本身由好夥伴維護、頁面不寫。
-const INBOX_KIND = { project: '新專案', link: '對外連結', task: '待辦', confirm: '待客戶確認', decision: '決策', change: '變更需求', evidence: '補依據' };
+const INBOX_KIND = { project: '新專案', link: '對外連結', contact: '聯絡人', task: '待辦', confirm: '待客戶確認', decision: '決策', change: '變更需求', evidence: '補依據' };
 const EV_STATE = { sent: '已寄出，未回覆', pm: '對方窗口已回覆', signed: '有權人已書面確認', lapsed: '逾期未回（依合約）' };
 // 依據：這件事當時留下的紀錄（哪份文件、哪封信、確認到什麼程度），爭議時從這裡調閱
 const evChips = list => (list || []).length ? `<details class="ev"><summary>依據 ${list.length}</summary><div class="chips">${list.map(ev => { const text = esc([ev.type, ev.title, EV_STATE[ev.state] || ev.state, ev.date].filter(Boolean).join('｜')); return ev.link ? `<a class="chip ev" href="${esc(normUrl(ev.link))}" target="_blank" rel="noopener">${text}</a>` : `<span class="chip ev">${text}</span>`; }).join('')}</div></details>` : '';
@@ -712,6 +758,8 @@ function applyInboxItem(b, it) {
   if (it.kind === 'change') p.changes.push({ id: uid(), text: it.summary, by: d.by || '', date: d.date || today(), quote: 'pending', evidence: ev });
   // 補依據：對方回信後，把回覆掛到原本那筆上；setStatus 可順便把待確認改成已回覆
   if (it.kind === 'evidence') { const target = (p[d.list] || []).find(x => x.id === d.targetId); if (target) { (target.evidence ??= []).push(...ev); if (d.setStatus) target.status = d.setStatus; } }
+  // 聯絡人：同名的更新資料，沒有的新增；所屬用協作對象的名稱對
+  if (it.kind === 'contact') { const data = { name: it.summary, party: resolvePerson(p, d.party), power: d.power || 'window', duty: d.duty || '', email: d.email || '', note: d.note || '' }; const old = (p.contacts ??= []).find(c => c.name === it.summary); if (old) Object.assign(old, data); else p.contacts.push({ id: 'c-' + uid(), ...data }); }
   // 對外連結：給客戶或夥伴看的進度頁等，同名的換成新網址
   if (it.kind === 'link') { p.links = (p.links || []).filter(l => l.label !== d.label); p.links.push({ label: d.label || it.summary, url: d.url }); }
   p.updatedAt = stamp();
@@ -799,7 +847,7 @@ $('#role').onchange = e => { role = e.target.value; render(); };
 $('#show-done').onchange = e => { showDone = e.target.checked; render(); };
 $('#sprint-filter').onchange = e => { sprintFilter = e.target.value; render(); };
 // 從網址 hash 還原上次停留的專案與分頁
-{ const [id, tab] = location.hash.slice(1).split('/'); if (state.projects.some(p => p.id === id)) { currentId = id; if (['summary', 'stages', 'tracking'].includes(tab)) currentTab = tab; if (tab === 'meeting') meeting = true; } }
+{ const [id, tab] = location.hash.slice(1).split('/'); if (state.projects.some(p => p.id === id)) { currentId = id; if (['summary', 'stages', 'tracking', 'specs'].includes(tab)) currentTab = tab; if (tab === 'meeting') meeting = true; } }
 render();
 // 資料正本在 iCloud 資料夾的 work.json；連結後覆寫目前 state 並重畫
-VaultStore.attach({ el: $('#store-status'), filename: 'work.json', get: () => state, set: data => { state = normalize(data); if (currentId && !state.projects.some(p => p.id === currentId)) currentId = null; selectedStage = null; render(); loadInbox(); } });
+VaultStore.attach({ el: $('#store-status'), filename: 'work.json', get: () => state, set: data => { state = normalize(data); if (currentId && !state.projects.some(p => p.id === currentId)) currentId = null; selectedStage = null; render(); loadInbox(); loadSpecs(); } });

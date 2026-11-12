@@ -651,3 +651,14 @@ details.ev summary::-webkit-details-marker{display:none}
 .guide-list{margin:0;padding-left:19px;font-size:14px;line-height:1.7;color:var(--ink-2)}
 .guide-list li{margin:3px 0}
 @media(max-width:640px){.guide-table td:first-child{white-space:normal}}
+/* 聯絡人：收在各協作對象底下，點開才看 */
+details.contacts{padding:0 6px 8px 54px}
+details.contacts summary{display:inline-block;list-style:none;cursor:pointer;font-size:12px;font-weight:500;padding:1px 8px;border-radius:6px;background:var(--gray-soft);color:var(--ink-2)}
+details.contacts summary::-webkit-details-marker{display:none}
+.contact{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line-soft);font-size:14px}
+.contact:first-of-type{border-top:0;margin-top:4px}
+.contact small{display:block;color:var(--ink-3);font-size:12.5px;word-break:break-all}
+/* 規格進度：已完成的收起來 */
+details.spec-done{padding:10px 0 0}
+details.spec-done table{margin-top:8px}
+#specs small.hint{display:block;margin:0}
