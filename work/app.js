@@ -200,7 +200,7 @@ function normalize(data) {
   }
   for (const p of data.projects) for (const s of p.stages) { s.checklist ??= []; s.features ??= []; s.enteredOn ??= ''; s.doneOn ??= ''; s.gate ??= { docs: true, checklist: false, features: false }; s.docs.forEach(d => d.confirmedOn ??= ''); s.checklist.forEach(c => c.due ??= ''); }
   data.inboxDone ??= {};
-  for (const p of data.projects) p.contacts ??= [];
+  for (const p of data.projects) { p.contacts ??= []; p.specPlans ??= []; }
   for (const p of data.projects) for (const k of ['confirms', 'decisions', 'changes']) (p[k] ??= []).forEach(x => { x.evidence ??= []; });
   return data;
 }
@@ -682,18 +682,50 @@ document.addEventListener('change', e => {
 // 開發的正本在各專案的 Spec Kit 規格庫。好夥伴掃規格庫後寫成 data/specs.json，這裡只顯示、不能改；
 // 要改負責人或期限，改 spec.md 檔頭的 Owner／Due。沒有 spec 的專案不會出現這個分頁。
 let specData = null;
-const SPEC_PILL = { '完成': 'done', '開發中': 'doing', '待驗證': 'open', '待開工': 'todo', '技術規劃': 'na', '寫規格': 'na' };
+const SPEC_PILL = { '完成': 'done', '開發中': 'doing', '待驗證': 'open', '待開工': 'todo', '技術規劃': 'na', '寫規格': 'na', '尚未建立': 'na' };
 function setSpecs(data) { specData = data; render(); }
 async function loadSpecs() { const data = await VaultStore.readJson('specs.json'); if (data) setSpecs(data); }
-function renderSpecs(p) {
-  const list = (role === 'owner' || role === 'member') ? (specData?.projects?.[p.id] || []) : [];
-  $('#tab-btn-specs').hidden = !list.length;
-  if (!list.length) { if (currentTab === 'specs') currentTab = 'summary'; return; }
-  const open = list.filter(s => s.stage !== '完成').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), done = list.filter(s => s.stage === '完成');
-  $('#specs-note').textContent = `未完成 ${open.length} 份、已完成 ${done.length} 份。資料來自規格庫，${fmtTime(specData.generatedAt)} 掃描；負責人與期限以 spec 檔頭為準。`;
-  const row = s => `<tr class="${s.stage === '完成' ? 'is-done' : ''}"><td>${light(s.due, s.stage === '完成')}<strong>${esc(s.id)}</strong> ${esc(s.title)}${s.flags.length ? `<div class="chips">${s.flags.map(f => `<span class="chip pending-sync">${esc(f)}</span>`).join('')}</div>` : ''}</td><td>${esc(s.owner || '—')}${s.reviewer ? `<small class="hint">審：${esc(s.reviewer)}</small>` : ''}</td><td>${esc(s.due || '—')}</td><td>${pill(SPEC_PILL[s.stage] || 'na', s.stage)}</td><td>${s.total ? `${s.done} / ${s.total}${s.review ? `<small class="hint">待驗證 ${s.review}</small>` : ''}` : '—'}</td><td>${esc(s.updated || '')}</td></tr>`;
-  $('#specs').innerHTML = `<table class="task-table"><thead><tr><th>規格</th><th>負責人</th><th>期限</th><th>階段</th><th>任務</th><th>最後更新</th></tr></thead><tbody>${open.map(row).join('')}</tbody></table>${done.length ? `<details class="contacts spec-done"><summary>已完成 ${done.length}</summary><table class="task-table"><tbody>${done.map(row).join('')}</tbody></table></details>` : ''}`;
+// 兩個來源合成一張表：規格庫掃到的實際狀況（specs.json）＋你在這裡排的計畫（p.specPlans：編號、名稱、負責人、期限）。
+// 前期規格還沒寫出來，先在這裡排；規格庫出現同編號的 spec 後自動對上。期限以這裡設的為準，跟檔頭不同會標出來。
+function specRows(p) {
+  const detected = specData?.projects?.[p.id] || [], plans = p.specPlans || [];
+  const flagsOf = r => r.stage === '完成' ? [] : [!r.owner && '沒有負責人', r.stage !== '完成' && !r.due && '沒有期限', r.stage !== '完成' && r.due && r.due < today() && '已逾期', r.headerDue && r.planDue && r.headerDue !== r.planDue && `檔頭期限 ${r.headerDue}`].filter(Boolean);
+  const rows = [...detected.map(s => { const pl = plans.find(x => x.no && x.no === s.id); return { ...s, planId: pl?.id || '', planDue: pl?.due || '', headerDue: s.due, due: pl?.due || s.due, owner: pl?.owner || s.owner || '' }; }),
+    ...plans.filter(pl => !detected.some(s => s.id === pl.no)).map(pl => ({ id: pl.no || '', title: pl.title, owner: pl.owner || '', reviewer: '', due: pl.due || '', stage: '尚未建立', done: 0, review: 0, total: 0, updated: '', planId: pl.id, planned: true }))];
+  rows.forEach(r => { r.flags = flagsOf(r); });
+  return rows;
 }
+function renderSpecs(p) {
+  const internal = role === 'owner' || role === 'member', rows = internal ? specRows(p) : [];
+  $('#tab-btn-specs').hidden = !(internal && (rows.length || role === 'owner'));
+  if ($('#tab-btn-specs').hidden) { if (currentTab === 'specs') currentTab = 'summary'; return; }
+  const open = rows.filter(s => s.stage !== '完成').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), done = rows.filter(s => s.stage === '完成');
+  $('#specs-note').textContent = rows.length ? `未完成 ${open.length} 份、已完成 ${done.length} 份。${specData?.projects?.[p.id]?.length ? `階段與任務數來自規格庫，${fmtTime(specData.generatedAt)} 掃描。` : '規格庫還沒有 spec，目前都是規劃中的。'}` : '';
+  const ops = s => can('edit') ? `<td class="ops-cell">${iconBtn('pen', `data-spec-edit="${esc(s.planId)}" data-spec-no="${esc(s.id)}" data-spec-title="${esc(s.title)}" data-spec-owner="${esc(s.owner)}" data-spec-due="${esc(s.due)}" data-spec-fixed="${s.planned ? '' : '1'}"`, '設定期限與負責人')}${s.planned ? iconBtn('trash', `data-del="specPlans:${s.planId}"`, '刪除') : ''}</td>` : '';
+  const row = s => `<tr class="${s.stage === '完成' ? 'is-done' : ''}"><td>${light(s.due, s.stage === '完成')}<strong>${esc(s.id)}</strong> ${esc(s.title)}${s.flags.length ? `<div class="chips">${s.flags.map(f => `<span class="chip pending-sync">${esc(f)}</span>`).join('')}</div>` : ''}</td><td>${esc(s.owner || '—')}${s.reviewer ? `<small class="hint">審：${esc(s.reviewer)}</small>` : ''}</td><td>${esc(s.due || '—')}</td><td>${pill(SPEC_PILL[s.stage] || 'na', s.stage)}</td><td>${s.total ? `${s.done} / ${s.total}${s.review ? `<small class="hint">待驗證 ${s.review}</small>` : ''}` : '—'}</td><td>${esc(s.updated || '—')}</td>${ops(s)}</tr>`;
+  $('#specs').innerHTML = rows.length ? `<table class="task-table"><thead><tr><th>規格</th><th>負責人</th><th>期限</th><th>階段</th><th>任務</th><th>最後更新</th>${can('edit') ? '<th></th>' : ''}</tr></thead><tbody>${open.map(row).join('')}</tbody></table>${done.length ? `<details class="contacts spec-done"><summary>已完成 ${done.length}</summary><table class="task-table"><tbody>${done.map(row).join('')}</tbody></table></details>` : ''}` : empty('doc', '還沒有規格', '先排出要寫哪些規格、誰負責、什麼時候完成。');
+}
+let editingSpec = null;
+function openSpecDialog(d) {
+  const p = project(); editingSpec = d?.specEdit ? (p.specPlans || []).find(x => x.id === d.specEdit) : null;
+  const fixed = !!d?.specFixed;
+  $('#spec-dialog-title').textContent = d ? '設定期限與負責人' : '規劃一份規格';
+  $('#sp-no').value = d?.specNo || ''; $('#sp-no').readOnly = fixed; $('#sp-title').value = d?.specTitle || ''; $('#sp-title').readOnly = fixed;
+  $('#sp-owner').value = d?.specOwner || ''; $('#sp-due').value = d?.specDue || '';
+  $('#sp-people').innerHTML = [...(p.contacts || []).map(c => c.name), ...p.people.map(u => u.name)].map(n => `<option value="${esc(n)}">`).join('');
+  $('#spec-dialog').showModal();
+}
+$('#spec-form').onsubmit = e => {
+  e.preventDefault(); const p = project(); const title = $('#sp-title').value.trim(); if (!title) return;
+  const data = { no: $('#sp-no').value.trim(), title, owner: $('#sp-owner').value.trim(), due: $('#sp-due').value };
+  const old = editingSpec || (data.no && (p.specPlans ??= []).find(x => x.no === data.no));
+  if (old) Object.assign(old, data); else (p.specPlans ??= []).push({ id: 'sp-' + uid(), ...data });
+  save(); $('#spec-dialog').close(); render();
+};
+document.addEventListener('click', e => {
+  if (e.target.closest('#add-spec')) { openSpecDialog(); return; }
+  const b = e.target.closest('[data-spec-no]'); if (b) openSpecDialog(b.dataset);
+});
 window.addEventListener('focus', loadSpecs);
 
 // ── 聯絡人（2026-11-12）──

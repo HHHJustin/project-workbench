@@ -69,7 +69,7 @@
           <button class="tab" data-tab="specs" id="tab-btn-specs" hidden>規格</button>
         </div>
 
-        <div id="tab-specs" class="tab-panel" hidden><div class="panel"><div class="section-title"><div><h2>規格進度</h2><p id="specs-note"></p></div></div><div id="specs"></div></div></div>
+        <div id="tab-specs" class="tab-panel" hidden><div class="panel"><div class="section-title"><div><h2>規格進度</h2><p id="specs-note"></p></div><button class="text-button" id="add-spec" data-need="owner">＋ 規劃規格</button></div><div id="specs"></div></div></div>
 
         <div id="tab-summary" class="tab-panel">
           <div id="p-kpis" class="kpis"></div>
@@ -130,7 +130,7 @@
     <li><b>右上角「好夥伴 N 筆更新」</b>：有建議時才出現。點開後按接受才寫進專案，略過就不再出現。</li>
     <li><b>「依據 N」小標籤</b>：出現在待客戶確認、決策、變更需求底下。點開看是哪封信、哪份文件、確認到什麼程度。</li>
     <li><b>概況頁「協作對象」底下的「聯絡人 N」</b>：每一方有哪些人、誰負責設計或開發、信箱、誰是窗口誰有決定權。好夥伴寫信時照這裡決定寄給誰。</li>
-    <li><b>專案頁的「規格」分頁</b>：有 spec 的專案才出現。內容來自規格庫，只能看不能改；要改負責人或期限，改 spec 檔頭。</li>
+    <li><b>專案頁的「規格」分頁</b>：可以先排「規劃中」的規格，設定負責人與期限；階段與任務數來自規格庫，要請好夥伴「更新規格進度」才會刷新。</li>
     <li><b>專案頁的「對外連結」</b>：給客戶看的進度頁網址，發布後才出現。</li>
   </ul>
   <h3>不會自動發生的事</h3>
@@ -253,6 +253,17 @@
   <label>負責什麼<input id="c-duty" maxlength="60" placeholder="例如：專案窗口、UI 設計、後端開發"></label>
   <label>信箱<input id="c-email" type="email" maxlength="120" placeholder="name@example.com"></label>
   <label>備註<input id="c-note" maxlength="120" placeholder="例如：範圍與費用要經過他同意"></label>
+  <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
+</form></dialog>
+<dialog id="spec-dialog"><form id="spec-form">
+  <div class="dialog-head"><div><p class="eyebrow">哪份規格、誰負責、什麼時候完成</p><h2 id="spec-dialog-title">規劃一份規格</h2></div><button type="button" class="icon close" aria-label="關閉">✕</button></div>
+  <div class="form-grid">
+    <label>編號<input id="sp-no" maxlength="8" placeholder="例如 001，還沒編可留空"></label>
+    <label>期限<input type="date" id="sp-due"></label>
+  </div>
+  <label>規格名稱<input id="sp-title" required maxlength="80" placeholder="例如：住宅版主約產製"></label>
+  <label>負責人<input id="sp-owner" list="sp-people" maxlength="40" placeholder="一份規格一位負責人"><datalist id="sp-people"></datalist></label>
+  <p class="hint">期限以這裡設的為準。規格庫裡的 spec 建好後，會用編號自動對上並顯示實際階段。</p>
   <div class="dialog-actions"><button type="button" class="outline close">取消</button><button class="primary" type="submit">儲存</button></div>
 </form></dialog>
 <dialog id="small-dialog"><form id="small-form">

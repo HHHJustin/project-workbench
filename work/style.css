@@ -662,3 +662,5 @@ details.contacts summary::-webkit-details-marker{display:none}
 details.spec-done{padding:10px 0 0}
 details.spec-done table{margin-top:8px}
 #specs small.hint{display:block;margin:0}
+.ops-cell{white-space:nowrap;text-align:right}
+input[readonly]{background:var(--gray-soft);color:var(--ink-3)}
