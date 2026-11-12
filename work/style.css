@@ -682,3 +682,10 @@ input[readonly]{background:var(--gray-soft);color:var(--ink-3)}
 .tl-bar.point{border-radius:50%;width:18px!important;margin-left:-9px}
 .tl-bar.late{border-color:var(--red);box-shadow:0 0 0 2px var(--red-soft)}
 .tl-due{position:absolute;top:12px;margin-left:8px;font-size:12px;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* 時程表防疊字：名稱欄超出就省略、軌道不外溢；過期很久的改用左側標籤 */
+.tl-name{min-width:0;padding-right:6px}
+.tl-track{overflow:hidden}
+.tl-axis .tl-track{overflow:visible}
+.tl-due.before{transform:translateX(-100%);margin-left:-8px}
+.tl-due.inside{transform:translateX(-50%);margin-left:0}
+.tl-past{position:absolute;left:0;top:11px;font-size:12px;line-height:1.5;padding:1px 10px 1px 6px;border-radius:0 11px 11px 0;background:var(--red-soft);color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums}

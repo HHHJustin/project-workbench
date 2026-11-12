@@ -687,8 +687,15 @@ function setSpecs(data) { specData = data; render(); }
 async function loadSpecs() { const data = await VaultStore.readJson('specs.json'); if (data) setSpecs(data); }
 // 兩個來源合成一張表：規格庫掃到的實際狀況（specs.json）＋你在這裡排的計畫（p.specPlans：編號、名稱、負責人、期限）。
 // 前期規格還沒寫出來，先在這裡排；規格庫出現同編號的 spec 後自動對上。期限以這裡設的為準，跟檔頭不同會標出來。
+// 示範資料：只掛在內建的虛構專案 p2 上，讓沒有連結規格庫的人（例如 GitHub 示範站）也看得到這一頁的樣子。真實專案的 id 不會是 p2。
+const demoSpecs = pid => pid !== 'p2' ? [] : [
+  ['001', '會員資料整合', '陳工程', '林設計', '完成', -40, -22, 14, 0, 14], ['002', '點數與等級規則', '林工程', '', '待驗證', -18, -3, 9, 2, 11],
+  ['003', '門市核銷後台', '陳工程', '夜夜', '開發中', -9, 8, 7, 1, 21], ['004', '官網會員登入', '王工程', '', '開發中', -4, 15, 3, 0, 16],
+  ['005', '推播通知', '林工程', '', '技術規劃', '', 24, 0, 0, 0], ['006', '報表匯出', '', '', '寫規格', '', '', 0, 0, 0],
+].map(([id, title, owner, reviewer, stage, start, due, done, review, total]) => ({ id, title, owner, reviewer, stage, status: '', start: start === '' ? '' : addDays(today(), start), due: due === '' ? '' : addDays(today(), due), done, review, total, updated: addDays(today(), -2), flags: [] }));
+const detectedSpecs = p => specData?.projects?.[p.id] || demoSpecs(p.id);
 function specRows(p) {
-  const detected = specData?.projects?.[p.id] || [], plans = p.specPlans || [];
+  const detected = detectedSpecs(p), plans = p.specPlans || [];
   const flagsOf = r => r.stage === '完成' ? [] : [!r.owner && '沒有負責人', r.stage !== '完成' && !r.due && '沒有期限', r.stage !== '完成' && r.due && r.due < today() && '已逾期', r.headerDue && r.planDue && r.headerDue !== r.planDue && `檔頭期限 ${r.headerDue}`].filter(Boolean);
   const rows = [...detected.map(s => { const pl = plans.find(x => x.no && x.no === s.id); return { ...s, planId: pl?.id || '', planDue: pl?.due || '', headerDue: s.due, due: pl?.due || s.due, owner: pl?.owner || s.owner || '' }; }),
     ...plans.filter(pl => !detected.some(s => s.id === pl.no)).map(pl => ({ id: pl.no || '', title: pl.title, owner: pl.owner || '', reviewer: '', due: pl.due || '', stage: '尚未建立', done: 0, review: 0, total: 0, updated: '', planId: pl.id, planned: true }))];
@@ -706,8 +713,13 @@ function specTimeline(open) {
   const ticks = []; for (let d = new Date(min); d.getTime() <= max; d.setDate(d.getDate() + 1)) if (d.getDay() === 1) ticks.push(d.getTime());
   const grid = ticks.map(x => `<i class="tl-tick" style="left:${pos(x)}%"></i>`).join('') + `<i class="tl-today" style="left:${pos(now)}%"></i>`;
   return `<div class="tl"><div class="tl-row tl-axis"><div></div><div class="tl-track">${ticks.map(x => `<span class="tl-label" style="left:${pos(x)}%">${fmtDate(localISO(new Date(x)))}</span>`).join('')}<span class="tl-label tl-now" style="left:${pos(now)}%">今天</span></div></div>${items.map(s => {
+    const head = `<div class="tl-row"><div class="tl-name"><strong>${esc(s.id)}</strong> ${esc(s.title)}<small>${esc(s.owner || '沒有負責人')}</small></div><div class="tl-track">${grid}`;
+    // 期限早於圖表範圍（過期很久）：不畫橫條，改在最左邊放一個標籤，避免擠成一小點又跟文字疊在一起
+    if (t(s.due) < min) return `${head}<span class="tl-past">◀ ${fmtDate(s.due)} 到期・${esc(s.stage)}</span></div></div>`;
     const end = pos(t(s.due) + day), start = s.start ? pos(t(s.start)) : Math.max(0, end - 1.2), late = s.due < today();
-    return `<div class="tl-row"><div class="tl-name"><strong>${esc(s.id)}</strong> ${esc(s.title)}<small>${esc(s.owner || '沒有負責人')}</small></div><div class="tl-track">${grid}<span class="tl-bar ${SPEC_PILL[s.stage] || 'na'} ${late ? 'late' : ''} ${s.start ? '' : 'point'}" style="left:${start}%;width:${Math.max(1.2, end - start)}%" title="${esc(s.stage)} · 期限 ${esc(s.due)}"></span><span class="tl-due" style="left:${end}%">${fmtDate(s.due)} ${esc(s.stage)}</span></div></div>`;
+    // 標籤預設放在橫條右邊；太靠右會超出邊界，就改放左邊，左邊也沒空間就放在橫條上
+    const side = end <= 80 ? `left:${end}%` : start >= 20 ? `left:${start}%` : `left:${(start + end) / 2}%`, cls = end <= 80 ? '' : start >= 20 ? 'before' : 'inside';
+    return `${head}<span class="tl-bar ${SPEC_PILL[s.stage] || 'na'} ${late ? 'late' : ''} ${s.start ? '' : 'point'}" style="left:${start}%;width:${Math.max(1.2, end - start)}%" title="${esc(s.stage)} · 期限 ${esc(s.due)}"></span><span class="tl-due ${cls}" style="${side}">${fmtDate(s.due)} ${esc(s.stage)}</span></div></div>`;
   }).join('')}</div>`;
 }
 function renderSpecs(p) {
@@ -715,7 +727,7 @@ function renderSpecs(p) {
   $('#tab-btn-specs').hidden = !(internal && rows.length);
   if ($('#tab-btn-specs').hidden) { if (currentTab === 'specs') currentTab = 'summary'; return; }
   const open = rows.filter(s => s.stage !== '完成').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), done = rows.filter(s => s.stage === '完成');
-  $('#specs-note').textContent = rows.length ? `未完成 ${open.length} 份、已完成 ${done.length} 份。${specData?.projects?.[p.id]?.length ? `階段與任務數來自規格庫，${fmtTime(specData.generatedAt)} 掃描。` : '規格庫還沒有 spec，目前都是規劃中的。'}` : '';
+  $('#specs-note').textContent = rows.length ? `未完成 ${open.length} 份、已完成 ${done.length} 份。${specData?.projects?.[p.id]?.length ? `階段與任務數來自規格庫，${fmtTime(specData.generatedAt)} 掃描。` : '這是示範資料；連結規格庫後會顯示實際狀況。'}` : '';
   $('#specs-timeline').innerHTML = specTimeline(open);
   const ops = s => can('edit') ? `<td class="ops-cell">${iconBtn('clock', `data-spec-edit="${esc(s.planId)}" data-spec-no="${esc(s.id)}" data-spec-title="${esc(s.title)}" data-spec-owner="${esc(s.owner)}" data-spec-due="${esc(s.due)}" data-spec-fixed="${s.planned ? '' : '1'}"`, '設定期限')}${s.planned ? iconBtn('trash', `data-del="specPlans:${s.planId}"`, '刪除') : ''}</td>` : '';
   const row = s => `<tr class="${s.stage === '完成' ? 'is-done' : ''}"><td>${light(s.due, s.stage === '完成')}<strong>${esc(s.id)}</strong> ${esc(s.title)}${s.flags.length ? `<div class="chips">${s.flags.map(f => `<span class="chip pending-sync">${esc(f)}</span>`).join('')}</div>` : ''}</td><td>${esc(s.owner || '—')}${s.reviewer ? `<small class="hint">審：${esc(s.reviewer)}</small>` : ''}</td><td>${esc(s.due || '—')}</td><td>${pill(SPEC_PILL[s.stage] || 'na', s.stage)}</td><td>${s.total ? `${s.done} / ${s.total}${s.review ? `<small class="hint">待驗證 ${s.review}</small>` : ''}` : '—'}</td><td>${esc(s.updated || '—')}</td>${ops(s)}</tr>`;
